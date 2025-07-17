@@ -1,0 +1,28 @@
+PHASE 0:
+- get raspberry pi 3b+ (running ubuntu server) and arduino due to talk using ros2/microros
+- use arduino to drive moborobo motors (4X separate), at varying speeds (varying PWM) based on commands from pi
+- set up pi to host web service where on-network computer can control robot from
+- design, print, and assemble robot body (4-wheel mecanum, battery powered)
+- (optional): integrate camera to pi, stream video feed to web serv
+
+PHASE 1:
+- add open-loop control to robot
+- research sensors, spec components and integrate onto vehicle, pulling data to pi
+	- proposed sensor suite:
+		- wheel encoders (odom)
+		- lidar (may be cost-prohibitive) (SLAM/collision avoidance)
+		- ultrasonic (obstacle avoidance)
+		- camera
+
+PHASE 2:
+- add closed-loop control to robot (ros2_control)
+- start on path-following
+
+PHASE 3:
+- perception systems (basic image recognition -> just want enough for it to be able to follow something)
+- SLAM (monocular camera or lidar)
+- path planning
+- following object (ID'd with camera feed)
+
+-> probably going to use python for pi code, arduino lang for arduino code
+	-> going to be easiest to get up and running due to library support
