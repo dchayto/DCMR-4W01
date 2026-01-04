@@ -82,18 +82,18 @@ void setup() {
 }
 
 void loop() {
+	/*
 	// TESTING BASIC COMMS - DELETE AFTERWARDS	
 	char i {};
 	if (Serial.available())	{
 		Serial.readBytes(&i, 1);	
 		Serial.write(&i, 1);	
 	}
-	// if can send/receive char back/forth, test with actual message
+	*/
 
 
 
 
-	/* COMMENTING OUT WHILE TESTING BASIC COMMS
 	// check for serial data on UART port
 	if (Serial.available() >= ws.MSG_SIZE)	{
 		if (Serial.readBytes(ws.msg, ws.MSG_SIZE) == ws.MSG_SIZE)	{
@@ -105,13 +105,17 @@ void loop() {
 	// if command to wheels received, handle now
 	if (CMD_FLAG & WHEELCMD_RECEIVED)	{
 		// send command to motors
-		drive();
+		//drive(); // UNCOMMENT LATER
+
+		// testing message passing - delete afterwards
+		Serial.write(ws.msg, UARTmsgs::MSG_SIZE)
 
 		// unset flag
 		CMD_FLAG |= WHEELCMD_RECEIVED;	
 	}
 
 
+	/* COMMENTING OUT WHILE TESTING BASIC COMMS
 	// read encoder data
 
 
