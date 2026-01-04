@@ -29,7 +29,7 @@
 
 #include "UARTmsgs.hpp"
 
-const static char UART_PORT[] = "/dev/ttyACM0";	 
+const char UART_PORT[] = "/dev/ttyACM0";
 static int serialPort; // move to private member var once node implemented
 
 // obvs move buffers to private member variables once ros node implemented

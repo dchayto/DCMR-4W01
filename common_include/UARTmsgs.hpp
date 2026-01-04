@@ -28,7 +28,8 @@ namespace UARTmsgs		{
 		// kind of sucks, because have to remember to call them before sending
 		// and after recieving messages, would be nice to abstract a bit more
 		void encodeMsg() {
-			std::snprintf(msg, MSG_SIZE, "%+" PRId8 
+			using namespace std; // arduino defaults snprintf into global ns
+			snprintf(msg, MSG_SIZE, "%+" PRId8 
 						" %+" PRId8 " %+" PRId8 " %+" PRId8, FR, FL, BR, BL);
 		}
 
