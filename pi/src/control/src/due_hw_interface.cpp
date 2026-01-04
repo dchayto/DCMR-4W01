@@ -30,6 +30,7 @@
 #include "UARTmsgs.hpp"
 
 const char UART_PORT[] = "/dev/ttyACM0";
+
 static int serialPort; // move to private member var once node implemented
 
 // obvs move buffers to private member variables once ros node implemented
@@ -91,23 +92,25 @@ void readUART(char * buf, size_t bufsize)	{
 
 void writeUART(char * msg, size_t msgsize)	{
 	// v probably need to send/recieve these messages as delimited strings
-	//write(serialPort, wheelIn, sizeof(UARTmsgs::WheelSpeed));
 	write(serialPort, msg, msgsize);
 }
 
 int main(int argc, char** argv)	{
 	openPort();
 
-	// NOTE: arduino seems to need ~150ms setup time more than pi to initialize port
-	std::this_thread::sleep_for(std::chrono::milliseconds(150)); // sleeping to allow for arduino setup
-	char j {};
-	for (char i = 65; i <= 122; ++i)	{
-		std::cout << "Sending message: " << i << std::endl;
-		writeUART(&i, 1);
-		std::this_thread::sleep_for(std::chrono::milliseconds(250)); // sleeping JIC
-		readUART(&j, 1);
-		std::cout << "Receiving message: " << j << std::endl;
-		std::this_thread::sleep_for(std::chrono::milliseconds(250)); // sleeping JIC
+	// NOTE: arduino seems to need ~150ms setup time more than pi to init port
+	std::this_thread::sleep_for(std::chrono::milliseconds(150)); 
+	UARTmsgs::WheelSpeed k { 0, 0, 0, 0 };
+	UARTmsgs::WheelSpeed j { 0, 0, 0, 0 };
+	for (int i = -128; i <= 127; ++i)	{
+		k.FR = k.FL = k.BR = k.BL = i;
+		k.encodeMsg();
+		std::cout << "Sending message: " << k.msg << std::endl;
+		writeUART(k.msg, UARTmsgs::MSG_SIZE);
+		std::this_thread::sleep_for(std::chrono::milliseconds(500)); 
+		readUART(j.msg, UARTmsgs::MSG_SIZE)
+		std::cout << "Receiving message: " << j.msg << std::endl;
+		std::this_thread::sleep_for(std::chrono::milliseconds(500)); 
 	}
 
 	closePort();
