@@ -28,7 +28,7 @@
 
 //include "UARTmsgs.hpp"
 
-const char[] UART_PORT = "/dev/ttys0";	 // CONFIRM THIS - see what due shows up as
+const char[] UART_PORT = "/dev/ttyACM0";
 static int serialPort; // move to private member var once node implemented
 
 // obvs move buffers to private member variables once ros node implemented
@@ -73,9 +73,9 @@ void openPort()	{
 	tty.c_cc[VTIME] = 0;
 	tty.c_cc[VMIN]	= 0; // trusting ROS2 callbacks to handle r/w scheduling
 
-	// set i/o baud rates to 57600; consider increasing if no issues
-	cfsetispeed(&tty, B57600);	
-	cfsetospeed(&tty, B57600);
+	// set i/o baud rates to 9600; consider increasing if no issues
+	cfsetispeed(&tty, B9600);	
+	cfsetospeed(&tty, B9600);
 
 	// maybe should change to TCSANOW - went drain because don't want 2 sets
 	// of a single type of data making it though on the same message
@@ -96,13 +96,17 @@ void writeUART(char * msg, size_t msgsize)	{
 
 int main(int argc, char** argv)	{
 	openPort();
+
+	// NOTE: arduino seems to need ~150ms setup time more than pi to init port
+	std::this_thread::sleep_for(std::chrono::milliseconds(150)); 
 	char j {};
-	for (char i = 65; i < 100; ++i)	{
+	for (char i = 65; i <= 122; ++i)	{
 		std::cout << "Sending message: " << i << std::endl;
 		writeUART(&i, 1);
-		std::this_thread::sleep_for(std::chrono::seconds(1)); // sleeping JIC
+		std::this_thread::sleep_for(std::chrono::milliseconds(250)); 
 		readUART(&j, 1)
 		std::cout << "Receiving message: " << j << std::endl;
+		std::this_thread::sleep_for(std::chrono::milliseconds(250)); 
 	}
 
 	closePort();

@@ -18,22 +18,22 @@
 #include "UARTmsgs.hpp"
 
 static UARTmsgs::WheelSpeed ws { };
-static uint8_t PWM[4] { 0, 0, 0, 0 };
+static uint8_t MOTOR_PWM[4] { 0, 0, 0, 0 };
 static int8_t DDIR[4] { 1, 1, 1, 1 }; 	// 1 for fwd, -1 for bkwd
 static const int ENCODER_TIMER { 1000 }; 	// 1 sec freq for sending enc data
 
 inline void drive()	{
 	// drive pins based on current status of control vars
-	analogWrite(FR_PWM, PWM[0]);
+	analogWrite(FR_PWM, MOTOR_PWM[0]);
 	analogWrite(FR_REV, DDIR[0]);
 
-	analogWrite(FR_PWM, PWM[1]);
+	analogWrite(FR_PWM, MOTOR_PWM[1]);
 	analogWrite(FR_REV, DDIR[1]);
 
-	analogWrite(FR_PWM, PWM[2]);
+	analogWrite(FR_PWM, MOTOR_PWM[2]);
 	analogWrite(FR_REV, DDIR[2]);
 	
-	analogWrite(FR_PWM, PWM[3]);
+	analogWrite(FR_PWM, MOTOR_PWM[3]);
 	analogWrite(FR_REV, DDIR[3]);
 }
 
@@ -66,11 +66,7 @@ void adjustPWM()	{
 
 void setup() {
 	// configure UART port
-	Serial.begin(57600); 	// ensure this matches baud rate on pi
-	while (!SerialUSB)	{
-		// maybe put a pin high or something to indicate the board is waiting
-		;		// wait for USB serial to become available
-	}
+	Serial.begin(9600); 	// ensure this matches baud rate on pi
 	
 	// set pins to safe state, initialize as req'd (set as input/output, etc.)
 	pinMode(FR_REV, OUTPUT);
@@ -89,8 +85,8 @@ void loop() {
 	// TESTING BASIC COMMS - DELETE AFTERWARDS	
 	char i {};
 	if (Serial.available())	{
-		Serial.readBytes(i, 1);	
-		Serial.write(i, 1);	
+		Serial.readBytes(&i, 1);	
+		Serial.write(&i, 1);	
 	}
 	// if can send/receive char back/forth, test with actual message
 
