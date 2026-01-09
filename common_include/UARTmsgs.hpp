@@ -24,9 +24,7 @@ namespace UARTmsgs		{
 		// vars for handling message formatting
 		static const int MSG_SIZE { 32 }; // largest string: "-128 -128 -128 -128" [19]
 		char msg[MSG_SIZE];
-		
-		// kind of sucks, because have to remember to call them before sending
-		// and after recieving messages, would be nice to abstract a bit more
+
 		void encodeMsg() {
 			using namespace std; // arduino defaults snprintf into global ns
 			snprintf(msg, MSG_SIZE, "%+" PRId8 
@@ -35,6 +33,14 @@ namespace UARTmsgs		{
 
 		void decodeMsg() {
 			std::sscanf(msg, "%hhd %hhd %hhd %hhd" , &FR, &FL, &BR, &BL);
+		}
+
+		void setWheelSpeed(int8_t FR, int8_t FL, int8_t BR, int8_t BL) {
+			this->FR = FR;
+			this->FL = FL;
+			this->BR = BR;
+			this->BL = BL;
+			encodeMsg();
 		}
 		
 	};

@@ -23,32 +23,89 @@
 #include <chrono> // for sleeping program during testing - can prob delete after
 #include <thread> // ^^
 
-#ifdef ROS2
 #include "rclcpp/rclcpp.hpp"
-#endif
 
 #include "UARTmsgs.hpp"
 
-const char UART_PORT[] = "/dev/ttyACM0";
+#define TESTING		// outputs additional messages to help with debugging
 
-static int serialPort; // move to private member var once node implemented
 
-// obvs move buffers to private member variables once ros node implemented
-//char encBuf[256]; 	// buffer for encoder data - decide what a reasonable value is
+class DueInterfaceNode : public rclcpp::Node
+{
+public:
+	DueInterfaceNode()
+	  : Node("due_interface_node")
+	  , ws_ { 0, 0, 0, 0 }
+	{
+		openPort();
 
-void closePort()	{
+		// SUBSCRIBERS
+		ws_subscription = this->create_subscription<DCMR_4W01::msg::Wheelspeed>
+			("wheelspeed", 1,
+			[this](const DCMR_4W01::msg::Wheelspeed& wsMsg)
+			{
+				// set ws_ based on received message, send to due
+				this->ws_.setWheelSpeed(wsMsg->front_right, wsMsg->front_left, 
+							wsMsg->back_right, wsMsg->back_left);
+				writeUART(this->ws_.msg, UARTmsgs::WheelSpeed.MSG_SIZE);
+				#ifdef TESTING
+				RCLCPP_INFO(this->get_logger(),
+						"Received wheelspeed: <%PRId8 %PRId8 %PRId8 %PRId8>"
+						, wsMsg->front_right, wsMsg->front_left
+						, wsMsg->back_right, wsMsg->back_left); 
+				#endif
+			};)
+		
+		/* commenting out until actually using encoder odom
+		// PUBLISHERS
+		odom_publisher = this->create_publisher<nav_msgs::msg::Odometry>("odom", 10);
+		encoderTimer = this->create_wall_timer(1s, 
+			[this]()
+			{
+				// read odom message from due, publish to topic 
+				readUART();		
+				//... message should be nav_msgs::msg::Odometry
+				auto odomMsg = nav_msgs::msg::Odometry();
+				odomMsg.header = ;
+				odomMsg.child_frame_id = ;
+				odomMsg.pose = ;
+				odomMsg.twist = ;
+				this->odom_publisher->publish(odomMsg);
+			};)
+		*/
+	}
+	
+	~DueInterfaceNode()
+	{
+		RCLCPP_INFO(this->get_logger(), "DueInterfaceNode shutting down.");
+		closePort();
+	}
+
+	static const char UART_PORT[] = "/dev/ttyACM0";
+
+private:
+	// member variables
+	int serialPort; 
+	UARTmsgs::WheelSpeed ws_;
+	rclcpp::Subscription<DCMR_4W01::msg::Wheelspeed>::SharedPtr ws_subscription;
+	rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_publisher;
+	rclcpp::TimerBase::SharedPtr encoderTimer;
+
+	// helper functions
+	void openPort();
+	void closePort();
+	void readUART(char * buf, size_t bufsize);
+	void writeUART(char * msg, size_t msgsize);
+};
+
+void DueInterfaceNode::closePort()	{
 	// move this line into ROS2 node destructor at some point
 	// not sure if i have to check for valid file before closing
 	close(serialPort);
 }
 
-void openPort()	{
-	// move this code into ROS2 node contructor at some point
+void DueInterfaceNode::openPort()	{
 	serialPort = open(UART_PORT, O_RDWR);
-
-	// apparently might run into issues if GeTTY is alreay trying to manage
-	// the device - if having troubles communicating, look into disabling
-	// (maybe do on pi at this point - don't want to be messing with sys files)
 
 	if (serialPort < 0)	{ // should return error code, or set an isValid param
 		std::cerr << "Error " << errno << ": " << std::strerror(errno) << std::endl;
@@ -86,18 +143,17 @@ void openPort()	{
 	}
 }
 
-void readUART(char * buf, size_t bufsize)	{
-	std::cout << "bytes read: \t" << read(serialPort, buf, bufsize) << std::endl;
+void DueInterfaceNode::readUART(char * buf, size_t bufsize)	{
+	read(serialPort, buf, bufsize);
 }
 
 void writeUART(char * msg, size_t msgsize)	{
-	// v probably need to send/recieve these messages as delimited strings
-	std::cout << "bytes written: \t" << write(serialPort, msg, msgsize) << std::endl;
+	write(serialPort, msg, msgsize); 
 }
 
 int main(int argc, char** argv)	{
+	/* FOR TESTING BASIC MESSAGE PASSING 
 	openPort();
-
 	// NOTE: arduino seems to need ~150ms setup time more than pi to init port
 	std::this_thread::sleep_for(std::chrono::milliseconds(100)); 
 	UARTmsgs::WheelSpeed k { 0, 0, 0, 0 };
@@ -111,7 +167,13 @@ int main(int argc, char** argv)	{
 		std::cout << "Receiving message: " << k.msg << std::endl << std::endl;
 		std::this_thread::sleep_for(std::chrono::milliseconds(100)); 
 	}
-
 	closePort();
+	*/
+	
+	rclcpp::init(argc, argv);
+	auto dueNode = std::make_shared<DueInterfaceNode>("due_interface_node");
+	rclcpp::spin(dueNode);
+	rclcpp::shutdown();
+
 	return 0;
 } // main

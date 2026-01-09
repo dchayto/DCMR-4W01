@@ -66,7 +66,7 @@ void adjustPWM()	{
 
 void setup() {
 	// configure UART port
-	Serial.begin(9600); 	// ensure this matches baud rate on pi
+	Serial.begin(57600); 	// ensure this matches baud rate on pi
 	
 	// set pins to safe state, initialize as req'd (set as input/output, etc.)
 	pinMode(FR_REV, OUTPUT);
@@ -91,14 +91,12 @@ void loop() {
 	}
 	*/
 
-
-
-
 	// check for serial data on UART port
 	if (Serial.available() >= ws.MSG_SIZE)	{
 		if (Serial.readBytes(ws.msg, ws.MSG_SIZE) == ws.MSG_SIZE)	{
 			ws.decodeMsg();
 			CMD_FLAG |= WHEELCMD_RECEIVED;	// note that command recieved
+			Serial.write(ws.msg, UARTmsgs::WheelSpeed::MSG_SIZE);
 		}
 	}
 
@@ -108,7 +106,7 @@ void loop() {
 		//drive(); // UNCOMMENT LATER
 
 		// testing message passing - delete afterwards
-		Serial.write(ws.msg, UARTmsgs::MSG_SIZE)
+		//Serial.write(ws.msg, UARTmsgs::WheelSpeed::MSG_SIZE);
 
 		// unset flag
 		CMD_FLAG |= WHEELCMD_RECEIVED;	
