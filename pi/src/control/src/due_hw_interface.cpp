@@ -24,6 +24,8 @@
 #include <thread> // ^^
 
 #include "rclcpp/rclcpp.hpp"
+#include "nav_msgs/msg/odometry.hpp"
+#include "control/msg/wheelspeed.hpp"
 
 #include "UARTmsgs.hpp"
 
@@ -35,26 +37,25 @@ class DueInterfaceNode : public rclcpp::Node
 public:
 	DueInterfaceNode()
 	  : Node("due_interface_node")
-	  , ws_ { 0, 0, 0, 0 }
 	{
 		openPort();
 
 		// SUBSCRIBERS
-		ws_subscription = this->create_subscription<DCMR_4W01::msg::Wheelspeed>
+		ws_subscription = this->create_subscription<control::msg::Wheelspeed>
 			("wheelspeed", 1,
-			[this](const DCMR_4W01::msg::Wheelspeed& wsMsg)
+			[this](const control::msg::Wheelspeed& wsMsg)
 			{
 				// set ws_ based on received message, send to due
-				this->ws_.setWheelSpeed(wsMsg->front_right, wsMsg->front_left, 
-							wsMsg->back_right, wsMsg->back_left);
-				writeUART(this->ws_.msg, UARTmsgs::WheelSpeed.MSG_SIZE);
+				this->ws_.setWheelSpeed(wsMsg.front_right, wsMsg.front_left, 
+							wsMsg.back_right, wsMsg.back_left);
+				writeUART(this->ws_.msg, UARTmsgs::WheelSpeed::MSG_SIZE);
 				#ifdef TESTING
 				RCLCPP_INFO(this->get_logger(),
-						"Received wheelspeed: <%PRId8 %PRId8 %PRId8 %PRId8>"
-						, wsMsg->front_right, wsMsg->front_left
-						, wsMsg->back_right, wsMsg->back_left); 
+						"Received wheelspeed: <%d %d %d %d>"
+						, wsMsg.front_right, wsMsg.front_left
+						, wsMsg.back_right, wsMsg.back_left); 
 				#endif
-			};)
+			});
 		
 		/* commenting out until actually using encoder odom
 		// PUBLISHERS
@@ -81,13 +82,13 @@ public:
 		closePort();
 	}
 
-	static const char UART_PORT[] = "/dev/ttyACM0";
 
 private:
 	// member variables
+	inline static const char UART_PORT[] = "/dev/ttyACM0";
 	int serialPort; 
 	UARTmsgs::WheelSpeed ws_;
-	rclcpp::Subscription<DCMR_4W01::msg::Wheelspeed>::SharedPtr ws_subscription;
+	rclcpp::Subscription<control::msg::Wheelspeed>::SharedPtr ws_subscription;
 	rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_publisher;
 	rclcpp::TimerBase::SharedPtr encoderTimer;
 
@@ -147,7 +148,7 @@ void DueInterfaceNode::readUART(char * buf, size_t bufsize)	{
 	read(serialPort, buf, bufsize);
 }
 
-void writeUART(char * msg, size_t msgsize)	{
+void DueInterfaceNode::writeUART(char * msg, size_t msgsize)	{
 	write(serialPort, msg, msgsize); 
 }
 
@@ -171,7 +172,7 @@ int main(int argc, char** argv)	{
 	*/
 	
 	rclcpp::init(argc, argv);
-	auto dueNode = std::make_shared<DueInterfaceNode>("due_interface_node");
+	auto dueNode = std::make_shared<DueInterfaceNode>();
 	rclcpp::spin(dueNode);
 	rclcpp::shutdown();
 
