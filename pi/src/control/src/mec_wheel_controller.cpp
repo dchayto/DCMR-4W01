@@ -28,8 +28,8 @@
 #include "include/mec_wheel_controller.hpp" 	// non-member helpers/consts
 #include "include/PID.hpp"	// generic PID controller structure
 
-#define MESSAGE_TESTING			// enables ROS message writeouts
-#undef CONTROLLER_IO_TESTING	// enables writeouts of controller I/O
+#undef MESSAGE_TESTING			// enables ROS message writeouts
+#define CONTROLLER_IO_TESTING	// enables writeouts of controller I/O
 
 class MecWheelControllerNode : public rclcpp::Node
 {
@@ -74,14 +74,6 @@ public:
 		wsTimer = this->create_wall_timer(50ms,
 			[this]()
 			{
-				// for now, just considering direction of vel vectors, not mag
-
-				// pre-computing scale factor; equivalent to norm both vectors,
-				// then multiply by magnitude of cmd vector
-				static double twistSF;
-				twistSF = cmdTwist.getLength() / belTwist.getLength(); 
-
-				if (!std::isfinite(twistSF)) { twistSF = 1; } // handle inf/nan
 			
 				// if command changed, reset PID params	
 				static twist prevTwist {};
@@ -98,9 +90,9 @@ public:
 				prev = now;
 
 				// generate error signal then send to PIDs
-				ctrlTwist.x = vxPID.correct(cmdTwist.x - twistSF*belTwist.x, dt);
-				ctrlTwist.y = vyPID.correct(cmdTwist.y - twistSF*belTwist.y, dt);
-				ctrlTwist.w = wzPID.correct(cmdTwist.w - twistSF*belTwist.w, dt);
+				ctrlTwist.x = vxPID.correct(cmdTwist.x - belTwist.x, dt);
+				ctrlTwist.y = vyPID.correct(cmdTwist.y - belTwist.y, dt);
+				ctrlTwist.w = wzPID.correct(cmdTwist.w - belTwist.w, dt);
 				
 #ifdef CONTROLLER_IO_TESTING
 				RCLCPP_INFO(this->get_logger(), 
@@ -108,29 +100,35 @@ public:
 					ctrlTwist.x, ctrlTwist.y, ctrlTwist.w);
 #endif
 
-				// using controller output, get wheelspeeds				
+				// using controller output, get wheelspeeds (rad/s)
 				static double frUS, flUS, brUS, blUS; 
 				frUS = getFrontRightWS();
 				flUS = getFrontLeftWS();
 				brUS = getBackRightWS();
 				blUS = getBackLeftWS();
 
-				// scale wheelspeeds for message
+				// scale wheelspeeds if command exceeding max speed 
 				// surely there's a better way to do this... oh well!
-				static double wheelSF;
-				wheelSF = std::max({std::abs(frUS), std::abs(flUS),
+				static double max_cmd {};
+				max_cmd = std::max({std::abs(frUS), std::abs(flUS),
 							std::abs(brUS), std::abs(blUS)});
-				if (wheelSF > static_cast<double>(std::numeric_limits<int8_t>::max()))
+				if (max_cmd > MAX_WHEELSPEED)
 				{
-			      wheelSF=static_cast<double>(std::numeric_limits<int8_t>::max())/wheelSF;
-				}	else	{ wheelSF = 1.0; }
+					static double wheelSF { 1.0 };
+					wheelSF = MAX_WHEELSPEED / max_cmd;
+					frUS *= wheelSF;
+					flUS *= wheelSF;
+					brUS *= wheelSF;
+					blUS *= wheelSF;
+				}	
 				
 				// publish wheelspeeds
+				static constexpr double wheelConversion { 127.0 / MAX_WHEELSPEED};
 				auto wsMsg = control::msg::Wheelspeed();
-				wsMsg.front_right 	= frUS * wheelSF;
-				wsMsg.front_left 	= flUS * wheelSF;
-				wsMsg.back_right 	= brUS * wheelSF; 
-				wsMsg.back_left 	= blUS * wheelSF; 
+				wsMsg.front_right 	= static_cast<int>(frUS * wheelConversion);
+				wsMsg.front_left 	= static_cast<int>(flUS * wheelConversion);
+				wsMsg.back_right 	= static_cast<int>(brUS * wheelConversion); 
+				wsMsg.back_left 	= static_cast<int>(blUS * wheelConversion); 
 				this->ws_publisher->publish(wsMsg);
 			});
 	} // </constructor>

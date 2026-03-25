@@ -27,7 +27,6 @@ public:
 	}
 
 private:	
-	// make sure to tune these values - note tuning rules used here
 	const double kp_;
 	const double ki_;
 	const double kd_;
