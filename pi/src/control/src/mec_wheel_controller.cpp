@@ -26,7 +26,7 @@
 #include "control/msg/wheelspeed.hpp"
 
 #include "include/mec_wheel_controller.hpp" 	// non-member helpers/consts
-#include "include/PID.hpp"	// generic PID controller structure
+#include "PID.hpp"	// generic PID controller structure
 
 #undef MESSAGE_TESTING			// enables ROS message writeouts
 #define CONTROLLER_IO_TESTING	// enables writeouts of controller I/O

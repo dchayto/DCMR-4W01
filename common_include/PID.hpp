@@ -1,6 +1,6 @@
 /*									PID.hpp									//
 	structure for generic PID controller; to be instantiated by velocity
-	PIDs in mec wheel controller
+	PIDs in mec wheel controller and motor controller
 */
 
 class PID	{

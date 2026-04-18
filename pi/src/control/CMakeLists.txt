@@ -21,8 +21,14 @@ ament_target_dependencies(kb_handler_node rclcpp geometry_msgs)
 add_executable(mecanum_controller_node src/mec_wheel_controller.cpp)
 ament_target_dependencies(mecanum_controller_node rclcpp geometry_msgs)
 
-target_include_directories(due_interface_node PRIVATE 
+target_include_directories(due_interface_node 
+  PRIVATE 
 	../../../common_include/
+)
+
+target_include_directories(mecanum_controller_node
+  PRIVATE
+  	../../../common_include/
 )
 
 set(msg_files

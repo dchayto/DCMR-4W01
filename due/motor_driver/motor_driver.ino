@@ -18,29 +18,42 @@
 #include "serialMSG.hpp"
 
 static serialMSG::WheelSpeed ws { };
-static uint8_t MOTOR_PWM[4] { 0, 0, 0, 0 };
-static int8_t DDIR[4] { 1, 1, 1, 1 }; 	// 1 for fwd, -1 for bkwd
+static uint8_t MOTOR_PWM[4] { 0, 0, 0, 0 }; // FR, FL, BR, BL
+static int8_t DDIR[4] { 1, 1, 1, 1 }; 	// 1 for fwd, 0 for bkwd
 
 #define MESSAGE_TESTING		// for testing message passing/recieving
-#undef DRIVE_ENABLE		// for enabling/disabling PWM commands
+#define DRIVE_ENABLE		// for enabling/disabling PWM commands
+#undef MOTOR_TESTING
 
 inline void drive()	{
 	// for now, just print wheelspeed commands to console
 	// drive pins based on current status of control vars
 	generatePWM();
-#ifdef DRIVE_ENABLE
-	analogWrite(FR_PWM, MOTOR_PWM[0]);
-	analogWrite(FR_REV, DDIR[0]);
-
-	analogWrite(FR_PWM, MOTOR_PWM[1]);
-	analogWrite(FR_REV, DDIR[1]);
-
-	analogWrite(FR_PWM, MOTOR_PWM[2]);
-	analogWrite(FR_REV, DDIR[2]);
 	
-	analogWrite(FR_PWM, MOTOR_PWM[3]);
-	analogWrite(FR_REV, DDIR[3]);
-#endif
+	#ifndef DRIVE_ENABLE
+		return;
+	#endif
+
+	digitalWrite(FR_FWD, DDIR[0]);
+	digitalWrite(FR_REV, 1 - DDIR[0]);
+	analogWrite(FR_PWM, MOTOR_PWM[0]);
+
+	digitalWrite(FL_FWD, DDIR[1]);
+	digitalWrite(FL_REV, 1 - DDIR[1]);
+	analogWrite(FL_PWM, MOTOR_PWM[1]);
+	
+	digitalWrite(BR_FWD, DDIR[2]);
+	digitalWrite(BR_REV, 1 - DDIR[2]);
+	analogWrite(BR_PWM, MOTOR_PWM[2]);
+
+	digitalWrite(BL_FWD, DDIR[3]);
+	digitalWrite(BL_REV, 1 - DDIR[3]);
+	analogWrite(BL_PWM, MOTOR_PWM[3]);
+}
+
+inline void stop()	{
+	for (int i = 0; i < 4; ++i)	MOTOR_PWM[i] = 0;
+	drive();
 }
 
 inline void generatePWM()	{
@@ -63,13 +76,6 @@ inline void generatePWM()	{
 
 }
 
-void adjustPWM()	{
-	// check to see if encoder ratios match input command ratio (ws)
-
-	// if not, apply gentle correction to PWM lines
-
-}
-
 void setup() {
 	// configure serial port
 	Serial.begin(57600); 	// ensure this matches baud rate on pi
@@ -78,18 +84,63 @@ void setup() {
 	while (Serial.available()) Serial.read();
 	
 	// set pins to safe state, initialize as req'd (set as input/output, etc.)
-	pinMode(FR_REV, OUTPUT);
-	pinMode(FL_REV, OUTPUT);
-	pinMode(BR_REV, OUTPUT);
-	pinMode(BL_REV, OUTPUT);
-
-	pinMode(FR_ENC, INPUT);
-	pinMode(FL_ENC, INPUT);
-	pinMode(BR_ENC, INPUT);
-	pinMode(BL_ENC, INPUT);
+	pinMode(FR_FWD, OUTPUT);	digitalWrite(FR_FWD, 0);
+	pinMode(FR_REV, OUTPUT);	digitalWrite(FR_REV, 0);
+	pinMode(FR_PWM, OUTPUT);	analogWrite(FR_PWM, 0);
+//	pinMode(FR_ENCA, INPUT);
+//	pinMode(FR_ENCB, INPUT);
+	
+	pinMode(FL_FWD, OUTPUT);	digitalWrite(FL_FWD, 0);
+	pinMode(FL_REV, OUTPUT);	digitalWrite(FL_REV, 0);
+	pinMode(FL_PWM, OUTPUT);	analogWrite(FL_PWM, 0);
+//	pinMode(FL_ENCA, INPUT);
+//	pinMode(FL_ENCB, INPUT);
+	
+	pinMode(BR_FWD, OUTPUT);	digitalWrite(BR_FWD, 0);
+	pinMode(BR_REV, OUTPUT);	digitalWrite(BR_REV, 0);
+	pinMode(BR_PWM, OUTPUT);	analogWrite(BR_PWM, 0);
+//	pinMode(BR_ENCA, INPUT);
+//	pinMode(BR_ENCB, INPUT);
+	
+	pinMode(BL_FWD, OUTPUT);	digitalWrite(BL_FWD, 0);
+	pinMode(BL_REV, OUTPUT);	digitalWrite(BL_REV, 0);
+	pinMode(BL_PWM, OUTPUT);	analogWrite(BL_PWM, 0);
+//	pinMode(BL_ENCA, INPUT);
+//	pinMode(BL_ENCB, INPUT);
 }
 
-void loop() {
+// TESTING MOTOR CONTROLS
+#ifdef MOTOR_TESTING
+void loop()	{
+	// testing forward controls
+	stop();
+
+	for (int i = 0; i < 4; ++i)	{
+		DDIR[i] = 1;
+		for (int k = 32; k < 256; k += 32)	{
+			MOTOR_PWM[i] = k;
+			drive();
+			delay(250);
+		}
+	}
+	
+	delay(1000);
+	stop();
+
+	// testing reverse controls	
+	for (int i = 0; i < 4; ++i)	{
+		DDIR[i] = 0;
+		for (int k = 32; k < 256; k += 32)	{
+			MOTOR_PWM[i] = k;
+			drive();
+			delay(250);
+		}
+	}
+	delay(1000);
+}
+#endif
+#ifndef MOTOR_TESTING
+void loop() { 
 	// SAFETY TIMEOUT ON MOTORS
 	static unsigned long motorTimer { millis() };
 	static constexpr unsigned long MOTOR_TIMEOUT { 1500 }; // time out after 1.5s
@@ -155,10 +206,8 @@ void loop() {
 #endif
 	}
 
-
 	/* COMMENTING OUT WHILE TESTING BASIC COMMS
 	// read encoder data
-
 
 	// send encoder data to helper functions for processing (_if_ doing onboard)
 		// while same input sending, monitor encoder data and make sure
@@ -178,5 +227,5 @@ void loop() {
 		// for now, just going to send a simple string back and forth
 	}
 	*/	
-
-}
+} // </loop>
+#endif
