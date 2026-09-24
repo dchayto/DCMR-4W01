@@ -1,6 +1,10 @@
 /*								serialMSG.hpp								//
 	defining custom structs/data types for passing messages between pi and due
 
+	also including serializer/parser for messages - not going to bother with
+	splitting into different modules, since i'm only dealing with two msgs that
+	both need to be considered in the only places this file will be included
+
 	auth: @dchayto
 
 */
@@ -8,55 +12,120 @@
 #ifndef __SERIAL_MSGS_H__
 #define __SERIAL_MSGS_H__
 
+#include "serialize.hpp"
+
 #include <cstdio>
 #include <cinttypes>
 #include <cstdint>
 
-// largest data string: "-128 -128 -128 -128" [19] -> go with 22 if sending chars
-// working with fixed with, 8bit integers... should be able to send directly 
-#define WHEELSPEED_MSG_SIZE 5 
 
-namespace serialMSG		{
-	struct WheelSpeed	{	 // 
-		// vars for handling message formatting
-		char msg[WHEELSPEED_MSG_SIZE]; // first element for struct packing
-		static const uint8_t MAGIC_NUMBER { 0xDC };
-		static const uint8_t MSG_SIZE { WHEELSPEED_MSG_SIZE };	
+static constexpr uint8_t MAGIC_NUMBER { 0xDC }; // for packet sync (220 dec)
 
-		// input wheel speed data
-		// could store as int8_t[4], but this seems clearer usage-wise
-		int8_t FR { 0 }; // front right wheel speed command
-		int8_t FL { 0 }; // front left
-		int8_t BR { 0 }; // back right
-		int8_t BL { 0 }; // back left
-		
-		void encodeMsg() {
-			//using namespace std; // arduino defaults snprintf into global ns
-			//snprintf(msg, MSG_SIZE, "%c %+" PRId8 " %+" PRId8 " %+" PRId8 
-			//			" %+" PRId8, MAGIC_NUMBER, FR, FL, BR, BL);
-			msg[0] = MAGIC_NUMBER;
-			msg[1] = FR;
-			msg[2] = FL;
-			msg[3] = BR;
-			msg[4] = BL;
-		}
+enum MSG_ID : uint8_t	{
+	MSG_WHEELSPEED,
+	MSG_WHEELTRAVEL
+};
 
-		void decodeMsg() {
-			//std::sscanf(msg, "%*c %hhd %hhd %hhd %hhd", &FR, &FL, &BR, &BL);
-			FR = msg[1];
-			FL = msg[2];
-			BR = msg[3];
-			BL = msg[4];
-		}
+///////////////////////////////////////////////////////////////////////////////
+//////////////////////////////// PAYLOADS ////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+// i'm aware this isn't a scalable implementation - only planning to ever pass
+// these two messages between the boards, so not worried about generalizing
+// or abstracting
 
-		void setWheelSpeed(int8_t FR, int8_t FL, int8_t BR, int8_t BL) {
-			this->FR = FR;
-			this->FL = FL;
-			this->BR = BR;
-			this->BL = BL;
-			encodeMsg();
-		} 
-	}; // </struct WheelSpeed>
-} // serialMSG
+struct WheelSpeed	{	 // 
+	// input wheel speed data; default 0-init for safety
+	// could store as float[4], but this seems clearer usage-wise
+	uint16_t sequence {0};
+	float fr_rad_s { 0.0f }; // front right wheel speed command
+	float fl_rad_s { 0.0f }; // front left
+	float br_rad_s { 0.0f }; // back right
+	float bl_rad_s { 0.0f }; // back left
+
+	static constexpr size_t PAYLOAD_SIZE = sizeof(sequence)	+ sizeof(FL) 
+			+ sizeof(FR) + sizeof(BR) + sizeof(BL);
+	static constexpr size_t TYPE = MSG_ID::MSG_WHEELSPEED;
+
+	// helper prototypes
+	void setWheelSpeed(float FR, float FL, float BR, float BL); 
+	const size_t serialize(uint8_t* p);
+	bool deserialize(uint8_t* p, size_t size);	
+
+}; // </struct WheelSpeed>
+
+struct WheelTravel	{
+	// delta wheel angular travel (del_theta), rad
+	uint16_t sequence;
+	uint16_t dt;			// dt since last message (ms)
+	float fl_rad;
+	float fr_rad:
+	float br_rad;
+	float bl_rad;
+
+	static constexpr size_t PAYLOAD_SIZE = sizeof(sequence) + sizeof(dt)
+			+ sizeof(fl_rad) + sizeof(fr_rad) + sizeof(br_rad) + sizeof(bl_rad);
+	static constexpr size_t TYPE = MSG_ID::MSG_WHEELTRAVEL;
+	
+	// helper prototypes
+	const size_t serialize(uint8_t* p);
+	bool deserialize(uint8_t* p, size_t size);	
+}; // </struct WheelTravel>
+
+///////////////////////////////////////////////////////////////////////////////
+//////////////////////////// SERIALIZATION HELPERS ////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////// wheelspeed helpers /////////////////////////////
+const size_t WheelSpeed::serialize(uint8_t* p)	{
+	uint8_t* startPtr = p;	// remembering where started
+	pack_u16_bin(&p, sequence);
+	pack_i32_bin(&p, fr_rad_s);
+	pack_i32_bin(&p, fl_rad_s);
+	pack_i32_bin(&p, br_rad_s);
+	pack_i32_bin(&p, bl_rad_s);
+	return p - startPtr;		// return number of bytes written
+} // </serialize>
+
+bool WheelSpeed::deserialize(uint8_t* p, size_t size)	{
+	if (size != PAYLOAD_SIZE) return false; // check for poorly formed pkt	
+	// note: ensure following order/datatype matches that in serialize function
+	sequence = unpack_u16_bin(&p); 
+	fr_rad_s = static_cast<float>(unpack_i32_bin(&p));	
+	fl_rad_s = static_cast<float>(unpack_i32_bin(&p));	
+	br_rad_s = static_cast<float>(unpack_i32_bin(&p));	
+	bl_rad_s = static_cast<float>(unpack_i32_bin(&p));	
+	
+	return true;
+} // </deserialize>
+//////////////////////////// end wheelspeed helpers ///////////////////////////
+
+
+///////////////////////////// wheel travel helpers ////////////////////////////
+const size_t WheelTravel::serialize(uint8_t* p)	{
+	uint8_t* startPtr = p;	// remembering where started
+	pack_u16_bin(&p, sequence);
+	pack_u16_bin(&p, dt);
+	pack_i32_bin(&p, fr_rad);
+	pack_i32_bin(&p, fl_rad);
+	pack_i32_bin(&p, br_rad);
+	pack_i32_bin(&p, bl_rad);
+
+	return p - startPtr;		// return number of bytes written
+} // </serialize>
+
+bool WheelTravel::deserialize(uint8_t* p, size_t size)	{
+	if (size != PAYLOAD_SIZE) return false; // check for poorly formed pkt	
+	// note: ensure following order/datatype matches that in serialize function
+	sequence = unpack_u16_bin(&p); 
+	dt = unpack_u16_bin(&p);
+	fr_rad = static_cast<float>(unpack_i32_bin(&p));	
+	fl_rad = static_cast<float>(unpack_i32_bin(&p));	
+	br_rad = static_cast<float>(unpack_i32_bin(&p));	
+	bl_rad = static_cast<float>(unpack_i32_bin(&p));	
+	
+	return true;
+} // </deserialize>
+/////////////////////////// end wheel travel helpers //////////////////////////
+
 
 #endif
