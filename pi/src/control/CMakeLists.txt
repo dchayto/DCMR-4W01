@@ -31,6 +31,10 @@ target_include_directories(mecanum_controller_node
   	../../../common_include/
 )
 
+target_include_directories(kb_handler_node
+  PRIVATE
+  	../../../common_include/
+)
 set(msg_files
 	"msg/Wheelspeed.msg"
 )

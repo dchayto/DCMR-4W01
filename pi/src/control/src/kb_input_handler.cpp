@@ -10,7 +10,12 @@
 	require looking for key pressed/key released events, which sounds a lot
 	more complicated than i really want to get into here
 
-	why not use teleop_twist_keyboard? because i hate myself that's why
+	NOTE: output from this is %max speed command - consuming node needs to
+	multiply the twist vector by the maximum speed to get the actual commanded
+	twist (this was done to keep this code agnostic of robot parameters, other
+	than those implied by the most basic configuration of the robot)
+
+	"why not use teleop_twist_keyboard?" because i hate myself that's why
 
 	auth: @dchayto
 */
@@ -31,14 +36,14 @@
 #include "include/kb_input.hpp"
 #include "include/kb_screen_handler.hpp"
 
+#include "robot_params.hpp"
+
 #undef TESTING
 
 class KeyboardHandlerNode : public rclcpp::Node
 {
 public:
-	KeyboardHandlerNode()
-	 : Node("kb_handler_node")
-	{
+	KeyboardHandlerNode() : Node("kb_handler_node")		{
 		// initialize screen & write default gain
 		ScreenHandler::initScreen();
 		ScreenHandler::writeGain(gain);
@@ -80,8 +85,7 @@ private:
 }; // </KeyboardHandlerNode>
 
 
-void KeyboardHandlerNode::onKBTimer()
-{
+void KeyboardHandlerNode::onKBTimer()	{
 	auto kbTwist = geometry_msgs::msg::Twist(); 
 
 	// check what keyboard input is
@@ -90,28 +94,34 @@ void KeyboardHandlerNode::onKBTimer()
 	if (!read(STDIN_FILENO, &ch, 1)) ch = ' '; // default blank if no read
 
 	// duplicate assignments, but clearer this way
-	kbTwist.linear.x = 0;
-	kbTwist.linear.y = 0;
-	kbTwist.angular.z = 0;
+	kbTwist.linear.x = 0.0;
+	kbTwist.linear.y = 0.0;
+	kbTwist.angular.z = 0.0;
+
+	/*
+	NEED TO UPDATE THIS CODE - should be sending based on %max speed, i.e.,
+	gain * 
+
+	*/
 
 	using namespace KeyboardConstants;	// kb mappings
 	using namespace InputConstants;		// ISR2
 	switch (ch)	{
 		// basic movements:
-		case FWD:	 	kbTwist.linear.x =  gain; 		break;
-		case LFT: 		kbTwist.linear.y = -gain; 		break;
-		case REV: 		kbTwist.linear.x = -gain; 		break;
-		case RHT:		kbTwist.linear.y =  gain; 		break;
-		case FWD_RHT: 	kbTwist.linear.x =  gain*ISR2;
-						kbTwist.linear.y =  gain*ISR2; 	break;
-		case FWD_LFT:	kbTwist.linear.x =  gain*ISR2; 
-						kbTwist.linear.y = -gain*ISR2; 	break;
-		case REV_LFT: 	kbTwist.linear.x = -gain*ISR2; 
-						kbTwist.linear.y = -gain*ISR2;	break;
-		case REV_RHT:	kbTwist.linear.x = -gain*ISR2;
-						kbTwist.linear.y =  gain*ISR2;	break;
-		case TRN_LFT: 	kbTwist.angular.z = -gain;		break;
-		case TRN_RHT: 	kbTwist.angular.z =  gain;		break;
+		case FWD:	 	kbTwist.linear.x =  gain*MAX_WHEELSPEED; 		break;
+		case LFT: 		kbTwist.linear.y = -gain*MAX_WHEELSPEED; 		break;
+		case REV: 		kbTwist.linear.x = -gain*MAX_WHEELSPEED; 		break;
+		case RHT:		kbTwist.linear.y =  gain*MAX_WHEELSPEED; 		break;
+		case FWD_RHT: 	kbTwist.linear.x =  gain*ISR2*MAX_WHEELSPEED;
+						kbTwist.linear.y =  gain*ISR2*MAX_WHEELSPEED; 	break;
+		case FWD_LFT:	kbTwist.linear.x =  gain*ISR2*MAX_WHEELSPEED; 
+						kbTwist.linear.y = -gain*ISR2*MAX_WHEELSPEED; 	break;
+		case REV_LFT: 	kbTwist.linear.x = -gain*ISR2*MAX_WHEELSPEED; 
+						kbTwist.linear.y = -gain*ISR2*MAX_WHEELSPEED;	break;
+		case REV_RHT:	kbTwist.linear.x = -gain*ISR2*MAX_WHEELSPEED;
+						kbTwist.linear.y =  gain*ISR2*MAX_WHEELSPEED;	break;
+		case TRN_LFT: 	kbTwist.angular.z = -gain*MAX_WHEELSPEED;		break;
+		case TRN_RHT: 	kbTwist.angular.z =  gain*MAX_WHEELSPEED;		break;
 		case GAINUP:	
 			gain += 1;
 			if (gain > 127) gain = 127;

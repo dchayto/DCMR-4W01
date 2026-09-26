@@ -2,4 +2,5 @@
 **/build/**
 **/install/**
 **/*make*
+**/*.swp
 REMAINING_TASKS

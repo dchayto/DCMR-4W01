@@ -17,7 +17,8 @@
 #include "include/encoder.hpp"
 #include "serialMSG.hpp"
 
-static serialMSG::WheelSpeed ws { };
+static serialMSG::WheelSpeed ws_mrad_s { };
+static serialMSG::WheelTravel wt_mrad { };
 static uint8_t MOTOR_PWM[4] { 0, 0, 0, 0 }; // FR, FL, BR, BL
 static int8_t DDIR[4] { 1, 1, 1, 1 }; 	// 1 for fwd, 0 for bkwd
 
@@ -26,10 +27,7 @@ static int8_t DDIR[4] { 1, 1, 1, 1 }; 	// 1 for fwd, 0 for bkwd
 #undef MOTOR_TESTING
 
 inline void drive()	{
-	// for now, just print wheelspeed commands to console
-	// drive pins based on current status of control vars
-	generatePWM();
-	
+	// drive pins based on current status of control vars (PWM, DDIR)
 	#ifndef DRIVE_ENABLE
 		return;
 	#endif
@@ -56,7 +54,7 @@ inline void stop()	{
 	drive();
 }
 
-inline void generatePWM()	{
+inline void rampPWM()	{
 	// send pwm commands based on current input ws, state of PWM array, and 
 	// reverse flags, taking old PWM array for starting point
 
@@ -154,56 +152,61 @@ void loop() {
 
 	// NOTE: arduino serial buffer is 64 byte
 	// NOTE: ring buffer MUST be power of 2 for bitwise math to work
-	static constexpr uint8_t BUFFER_SIZE { 32 }; // enough for 3 messages
+	// NOTE: nomenclature here is a bit confusing: searching backwards through
+	//		 ring buffer, so using head as most recent element, tail as oldest
+	static constexpr uint8_t BUFFER_SIZE { 128 }; // enough for 2 full serial buffers
 	static char input_buffer[BUFFER_SIZE];	// ring buffer for serial data 
 	static uint8_t head { 0 };	// head (write) for buffer)
 	static uint8_t tail { 0 };	// tail (read) for buffer
 
  	// if data in system buffer, read into ring buffer 
 	while (Serial.available())	{ 
-		input_buffer[head] = Serial.read();	
-		++head &= (BUFFER_SIZE - 1); // head+=1-(head%BUFFER_SIZE) [0, bufsize-1]
+		input_buffer[head] = Serial.read();		// read in a byte	
+		++head &= (BUFFER_SIZE - 1); 			// handle wraparound
 	}
 
-	// if have a full string available in ring buffer (head is >= ws.MSG_SIZE
+	// if have a full string available in ring buffer (head is >= MSG_SIZE
 	// pos ahead of tail), look for message between head-MSG_SIZE and tail
-	if ((head > tail ? head - tail : head + BUFFER_SIZE - tail) > ws.MSG_SIZE)	{
-		// starting at HEAD - ws.MSG_SIZE (first possible location for start of 
-		// valid full frame), look backwards through input buffer for start of
-		// frame (i.e., check for magic number), stopping if tail reached
-		static uint8_t searchpos;
+	// NOTE: not bothering with sequence number for wheelspeed messages, since
+	// only processing latest message, which is handled by head/tail
+	if ((head > tail ? head - tail : head + BUFFER_SIZE - tail) > WheelSpeed::PAYLOAD_SIZE)	{
+		// starting at HEAD - PAYLOAD_SIZE -- don't have full message size, so
+		// this is as close as it's getting to first possible valid packet
+		// (allows skipping parsing packets that are obviously incomplete)
+		// look backwards through input buffer for start of frame (i.e., check
+		// for magic number), stopping if tail reached
+		static uint8_t startpos;
+		
 		// start at position of head less one message
-		searchpos = (head - WheelSpeed::MSG_SIZE) & (BUFFER_SIZE - 1);
-		for (uint8_t searchidx {searchpos}, timeout {0}
-				; timeout < WheelSpeed::MSG_SIZE; ++timeout)	{
-			if (searchidx == tail) break; // MAKE SURE NOT GOING PAST TAIL
-			if (input_buffer[searchidx] == WheelSpeed::MAGIC_NUMBER)	{
-				// magic number found; start of message
-				// read MSG_SIZE worth of bytes from ring buf to ws.msg; process message
-				for (uint8_t copyIdx {0}; copyIdx < WheelSpeed::MSG_SIZE; ++copyIdx)	{
-					ws.msg[copyIdx] = input_buffer[searchidx];
-					++searchidx &= (BUFFER_SIZE - 1); 
-				}
+		startpos = (head - WheelSpeed::PAYLOAD_SIZE) & (BUFFER_SIZE - 1);
+
+		// loop through until reaching tail (location of last parsed msg)
+		for (uint8_t searchidx = startpos; searchidx != tail; 
+			--searchidx &= BUFFER_SIZE - 1)	{
+			
+			static uint8_t* msgStart = nullptr;
+			msg = parsePacket(buffer + searchidx);	
+
+			if (msg != nullptr)	{
+				ws_mrad_s::deserialize(msg);
 				CMD_FLAG |= WHEELCMD_RECEIVED;	// note that command recieved
 				break;	// stop loop early; found start of message	
-			}	else	{
-				// magic number not found; keep looking until end condition
-				--searchidx &= BUFFER_SIZE - 1;	// go back 1 position in ring
 			}
-		}
+		} // end of buffer parsing
+
 		tail = searchpos;	// set tail to latest parsed value
-	} // end of buffer parsing
+	} // end of conditional 
 
 
 	// if command to wheels received, handle now
 	if (CMD_FLAG & WHEELCMD_RECEIVED)	{
-		ws.decodeMsg();				// process string message into wheelspeeds
 		drive();						// send command to motors
 		CMD_FLAG &= ~WHEELCMD_RECEIVED;	// unset flag
 		motorTimer = millis();			// reset timer
-#ifdef MESSAGE_TESTING
+
+		#ifdef MESSAGE_TESTING
 		Serial.println(ws.msg); 		// testing message passing
-#endif
+		#endif
 	}
 
 	/* COMMENTING OUT WHILE TESTING BASIC COMMS

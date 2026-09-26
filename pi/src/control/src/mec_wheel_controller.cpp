@@ -27,16 +27,14 @@
 
 #include "include/mec_wheel_controller.hpp" 	// non-member helpers/consts
 #include "PID.hpp"	// generic PID controller structure
+#include "robot_params.hpp"		// for robot parameters
 
 #undef MESSAGE_TESTING			// enables ROS message writeouts
 #define CONTROLLER_IO_TESTING	// enables writeouts of controller I/O
 
-class MecWheelControllerNode : public rclcpp::Node
-{
+class MecWheelControllerNode : public rclcpp::Node	{
 public:
-	MecWheelControllerNode()
-	 : Node("mech_controller_node")
-	{
+	MecWheelControllerNode() : Node("mech_controller_node")		{
 		std::cout << belTwist.x << " " << belTwist.y << " " << belTwist.w << std::endl;
 		// SUBSCRIBERS
 		input_twist_subscription = this->create_subscription<geometry_msgs::msg::Twist>
@@ -46,24 +44,25 @@ public:
 				cmdTwist.x = icMsg.linear.x;
 				cmdTwist.y = icMsg.linear.y;
 				cmdTwist.w = icMsg.angular.z;
-#ifdef MESSAGE_TESTING
+				
+				#ifdef MESSAGE_TESTING
 				RCLCPP_INFO(this->get_logger(), 
 					"Received cmd: {vx: %f | vy: %f | w: %f}",
 					cmdTwist.x, cmdTwist.y, cmdTwist.w);
-#endif
+				#endif
 			});
 		measured_twist_subscription = this->create_subscription<geometry_msgs::msg::Twist>
 			("bel_twist", 1,
-			[this](const geometry_msgs::msg::Twist& btMsg)
-			{
+			[this](const geometry_msgs::msg::Twist& btMsg)	{
 				belTwist.x = btMsg.linear.x;
 				belTwist.y = btMsg.linear.y;
 				belTwist.w = btMsg.angular.z;
-#ifdef MESSAGE_TESTING
+
+				#ifdef MESSAGE_TESTING
 				RCLCPP_INFO(this->get_logger(), 
 					"Received bel: {vx: %f | vy: %f | w: %f}",
 					belTwist.x, belTwist.y, belTwist.w);
-#endif
+				#endif
 			});
 
 		prev = this->get_clock()->now();	// initialize timestep variable
@@ -72,9 +71,7 @@ public:
 		using namespace std::chrono_literals;
 		ws_publisher = this->create_publisher<control::msg::Wheelspeed>("wheelspeed", 1);
 		wsTimer = this->create_wall_timer(50ms,
-			[this]()
-			{
-			
+			[this]()	{
 				// if command changed, reset PID params	
 				static twist prevTwist {};
 				if (prevTwist.x == cmdTwist.x)	{ vxPID.reset(); }
@@ -94,11 +91,11 @@ public:
 				ctrlTwist.y = vyPID.correct(cmdTwist.y - belTwist.y, dt);
 				ctrlTwist.w = wzPID.correct(cmdTwist.w - belTwist.w, dt);
 				
-#ifdef CONTROLLER_IO_TESTING
+				#ifdef CONTROLLER_IO_TESTING
 				RCLCPP_INFO(this->get_logger(), 
 					"Controller output: {vx: %f | vy: %f | w: %f}",
 					ctrlTwist.x, ctrlTwist.y, ctrlTwist.w);
-#endif
+				#endif
 
 				// using controller output, get wheelspeeds (rad/s)
 				static double frUS, flUS, brUS, blUS; 
@@ -123,18 +120,16 @@ public:
 				}	
 				
 				// publish wheelspeeds
-				static constexpr double wheelConversion { 127.0 / MAX_WHEELSPEED};
 				auto wsMsg = control::msg::Wheelspeed();
-				wsMsg.front_right 	= static_cast<int>(frUS * wheelConversion);
-				wsMsg.front_left 	= static_cast<int>(flUS * wheelConversion);
-				wsMsg.back_right 	= static_cast<int>(brUS * wheelConversion); 
-				wsMsg.back_left 	= static_cast<int>(blUS * wheelConversion); 
+				wsMsg.front_right 	= frUS;
+				wsMsg.front_left 	= flUS;
+				wsMsg.back_right 	= brUS;
+				wsMsg.back_left 	= blUS;
 				this->ws_publisher->publish(wsMsg);
 			});
 	} // </constructor>
 
-	~MecWheelControllerNode()
-	{
+	~MecWheelControllerNode()	{
 		RCLCPP_INFO(this->get_logger(), "MecWheelControllerNode shutting down.");
 	} // </destructor>
 
@@ -165,102 +160,6 @@ private:
 	double getBackRightWS();
 	double getBackLeftWS();
 }; // class
-
-
-// using output from controller, calculate wheelspeeds based on kin model
-//
-// IGNORING TRANSFORMS TO WORLD FRAME - going to handle any world:body 
-// transforms on world-side system (i.e., use robot pose to transform
-// desired global position/velocity command to appropriate body frame command
-// i.e., considering body frame to "be" global frame
-//
-// NOTE: considering:
-//			- driving direction as x 
-//			- vertical up as z
-//			- left as y (by right hand naming convention)
-//			- theta(world->body) as 0rad
-//			- thata(body->wheel) as 0rad (driving direction of wheel frame 
-// 			  parallel to driving direction of robot frame
-// 			- body frame to be centered on trackwidth and wheelbase
-//	considering these, frame relation matrix becomes:
-//		[c(0)		s(0)		x_wheel*s(0) - y_wheel*c(0)]
-//		[-s(0)		c(0)		x_wheel*c(0) + y_wheel*s(0)]
-//
-//		[1			0			-y_wheel]
-//		[0			1			 x_wheel]
-//  where x_wheel, -y_wheel are the wheel's centre position relative to the
-//  body frame of the robot, in (i.e., position in {b})
-//
-//  overall, v_drive simplfies to	 (1*v_x + 0 + -y_wheel*w_z) 
-//								   + MEC_ANGLE * (0 + 1*v_y +  x_wheel*w_z)
-//  should really precompute as much of this as possible; everything except
-//  v_x, v_y, and w_z are constant by setup
-//
-//  solved on paper; works out to:
-// 		v_drive = (1/r)*v_x + (g)*v_y + (x_wheel*g - y_wheel*g)*w_z
-//  where g = tan(MEC_ANGLE) / r
-//
-// 	NEED TO UPDATE THIS CODE TO USE STATIC TF2 PUBLISHER
-double MecWheelControllerNode::getFrontRightWS()
-{
-	// remember to use +MEC_ANGLE, +X_WHEEL, -Y_WHEEL
-	static const double G 			{ std::tan(+MEC_ANGLE) / WHEEL_RADIUS };
-	static const double X_WHEEL 	{ +WHEELBASE / 2.0 };
-	static const double Y_WHEEL 	{ -TRACK_WIDTH / 2.0 };
-	static const double G_X 		{ 1.0 / WHEEL_RADIUS };
-	// static const double G_Y 		{ G };
-	static const double G_W			{ X_WHEEL*G - Y_WHEEL*G };
-
-	static double v_drive;
-	v_drive = G_X * ctrlTwist.x + G * ctrlTwist.y + G_W * ctrlTwist.w;
-	return v_drive / WHEEL_RADIUS;
-}
-
-double MecWheelControllerNode::getFrontLeftWS()
-{
-	// remember to use -MEC_ANGLE, +X_WHEEL, +Y_WHEEL
-	static const double G 			{ std::tan(-MEC_ANGLE) / WHEEL_RADIUS };
-	static const double X_WHEEL 	{ +WHEELBASE / 2.0 };
-	static const double Y_WHEEL 	{ +TRACK_WIDTH / 2.0 };
-	static const double G_X 		{ 1.0 / WHEEL_RADIUS };
-	// static const double G_Y 		{ G };
-	static const double G_W			{ X_WHEEL*G - Y_WHEEL*G };
-
-	static double v_drive;
-	v_drive = G_X * ctrlTwist.x + G * ctrlTwist.y + G_W * ctrlTwist.w;
-	return v_drive / WHEEL_RADIUS;
-}
-
-double MecWheelControllerNode::getBackRightWS()
-{
-	// remember to use -MEC_ANGLE, -X_WHEEL, -Y_WHEEL
-	static const double G 			{ std::tan(-MEC_ANGLE) / WHEEL_RADIUS };
-	static const double X_WHEEL 	{ -WHEELBASE / 2.0 };
-	static const double Y_WHEEL 	{ -TRACK_WIDTH / 2.0 };
-	static const double G_X 		{ 1.0 / WHEEL_RADIUS };
-	// static const double G_Y 		{ G };
-	static const double G_W			{ X_WHEEL*G - Y_WHEEL*G };
-
-	static double v_drive;
-	v_drive = G_X * ctrlTwist.x + G * ctrlTwist.y + G_W * ctrlTwist.w;
-	return v_drive / WHEEL_RADIUS;
-}
-
-double MecWheelControllerNode::getBackLeftWS()
-{
-	// remember to use +MEC_ANGLE, -X_WHEEL, +Y_WHEEL
-	static const double G 			{ std::tan(+MEC_ANGLE) / WHEEL_RADIUS };
-	static const double X_WHEEL 	{ -WHEELBASE / 2.0 };
-	static const double Y_WHEEL 	{ +TRACK_WIDTH / 2.0 };
-	static const double G_X 		{ 1.0 / WHEEL_RADIUS };
-	// static const double G_Y 		{ G };
-	static const double G_W			{ X_WHEEL*G - Y_WHEEL*G };
-
-	static double v_drive;
-	v_drive = G_X * ctrlTwist.x + G * ctrlTwist.y + G_W * ctrlTwist.w;
-	return v_drive / WHEEL_RADIUS;
-}
-
 
 int main(int argc, char** argv)	{
 	rclcpp::init(argc, argv);

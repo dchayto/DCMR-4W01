@@ -28,7 +28,7 @@ enum MSG_ID : uint8_t	{
 	MSG_WHEELTRAVEL
 };
 
-static constexpr uint16_t MAGIC_NUMBER { 0xDCDC }; // for packet sync (56540 dec)
+constexpr uint16_t MAGIC_NUMBER { 0xDCDC }; // for packet sync (56540 dec)
 //static constexpr size_t HEADER_SIZE =
 //	sizeof(MAGIC_NUMBER) 	+ 
 //	sizeof(MSG_ID) 			+
@@ -93,7 +93,7 @@ const size_t WheelSpeed::serialize(uint8_t* p)	{
 	return p - startPtr;		// return number of bytes written
 } // </serialize>
 
-void WheelSpeed::deserialize(uint8_t* p, size_t size)	{
+void WheelSpeed::deserialize(uint8_t* p)	{
 //	if (size != PAYLOAD_SIZE) return false; // check for poorly formed pkt	
 	// note: ensure following order/datatype matches that in serialize function
 	fr_mrad_s = static_cast<double>(unpack_i32_bin(&p));	
@@ -118,7 +118,7 @@ const size_t WheelTravel::serialize(uint8_t* p)	{
 	return p - startPtr;		// return number of bytes written
 } // </serialize>
 
-void WheelTravel::deserialize(uint8_t* p, size_t size)	{
+void WheelTravel::deserialize(uint8_t* p)	{
 //	if (size != PAYLOAD_SIZE) return false; // check for incomplete pkt	
 	// note: ensure following order/datatype matches that in serialize function
 	dt = unpack_u16_bin(&p);
