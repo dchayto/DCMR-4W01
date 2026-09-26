@@ -7,7 +7,7 @@
 
 	NOTE: assumes full message is going to be less than 128 bytes. not checking
 	to confirm that this isn't the case, since message formats are fairly
-	limited + controlled
+	limited + controlled (NOT SURE IF THIS IS ACTUALLY AN ASSUMPTION ANYMORE)
 
 	full packet is [MAGIC_NUMBER][TYPE][SEQUENCE][PAYLOAD][CRC-8]
 	                  uint_16    uint_8  uint_8   varies   uint_8
@@ -21,8 +21,6 @@
 
 #include "serialize.hpp"
 
-#include <cstdio>
-#include <cinttypes>
 #include <cstdint>
 
 enum MSG_ID : uint8_t	{
@@ -47,14 +45,14 @@ static constexpr uint16_t MAGIC_NUMBER { 0xDCDC }; // for packet sync (56540 dec
 
 struct WheelSpeed	{	 // 
 	// input wheel speed data; default 0-init for safety
-	// could store as float[4], but this seems clearer usage-wise
-	float fr_rad_s { 0.0f }; // front right wheel speed command
-	float fl_rad_s { 0.0f }; // front left
-	float br_rad_s { 0.0f }; // back right
-	float bl_rad_s { 0.0f }; // back left
+	// could store as double[4], but this seems clearer usage-wise
+	double fr_mrad_s { 0.0 }; // front right wheel speed command
+	double fl_mrad_s { 0.0 }; // front left
+	double br_mrad_s { 0.0 }; // back right
+	double bl_mrad_s { 0.0 }; // back left
 
-	static constexpr uint8_t PAYLOAD_SIZE = static_cast<uint8_t>(sizeof(FL) 
-		+ sizeof(FR) + sizeof(BR) + sizeof(BL));
+	// wire format of payload is 4x int32_t
+	static constexpr uint8_t PAYLOAD_SIZE = static_cast<uint8_t>(4 * sizeof(int32_t));
 	static constexpr uint8_t TYPE = MSG_ID::MSG_WHEELSPEED;
 
 	// helper prototypes
@@ -64,15 +62,16 @@ struct WheelSpeed	{	 //
 }; // </struct WheelSpeed>
 
 struct WheelTravel	{
-	// delta wheel angular travel (del_theta), rad
+	// delta wheel angular travel (del_theta), mrad
 	uint16_t dt;			// dt since last message (ms)
-	float fl_rad;
-	float fr_rad:
-	float br_rad;
-	float bl_rad;
+	double fl_mrad;
+	double fr_mrad:
+	double br_mrad;
+	double bl_mrad;
 
-	static constexpr uint8_t PAYLOAD_SIZE = static_cast<uint8_t>(sizeof(dt)
-		+ sizeof(fl_rad) + sizeof(fr_rad) + sizeof(br_rad) + sizeof(bl_rad);
+	// wire format of payload is 1 uint16_t + 4x int32_t
+	static constexpr uint8_t PAYLOAD_SIZE = static_cast<uint8_t>(
+		sizeof(uint16_t) + 4 * sizeof(int32_t));
 	static constexpr uint8_t TYPE = MSG_ID::MSG_WHEELTRAVEL;
 	
 	// helper prototypes
@@ -87,20 +86,20 @@ struct WheelTravel	{
 ////////////////////////////// wheelspeed helpers /////////////////////////////
 const size_t WheelSpeed::serialize(uint8_t* p)	{
 	uint8_t* startPtr = p;	// remembering where started
-	pack_i32_bin(&p, fr_rad_s);
-	pack_i32_bin(&p, fl_rad_s);
-	pack_i32_bin(&p, br_rad_s);
-	pack_i32_bin(&p, bl_rad_s);
+	pack_i32_bin(&p, static_cast<int32_t>(fr_mrad_s));
+	pack_i32_bin(&p, static_cast<int32_t>(fl_mrad_s));
+	pack_i32_bin(&p, static_cast<int32_t>(br_mrad_s));
+	pack_i32_bin(&p, static_cast<int32_t>(bl_mrad_s));
 	return p - startPtr;		// return number of bytes written
 } // </serialize>
 
 void WheelSpeed::deserialize(uint8_t* p, size_t size)	{
 //	if (size != PAYLOAD_SIZE) return false; // check for poorly formed pkt	
 	// note: ensure following order/datatype matches that in serialize function
-	fr_rad_s = static_cast<float>(unpack_i32_bin(&p));	
-	fl_rad_s = static_cast<float>(unpack_i32_bin(&p));	
-	br_rad_s = static_cast<float>(unpack_i32_bin(&p));	
-	bl_rad_s = static_cast<float>(unpack_i32_bin(&p));	
+	fr_mrad_s = static_cast<double>(unpack_i32_bin(&p));	
+	fl_mrad_s = static_cast<double>(unpack_i32_bin(&p));	
+	br_mrad_s = static_cast<double>(unpack_i32_bin(&p));	
+	bl_mrad_s = static_cast<double>(unpack_i32_bin(&p));	
 	
 //	return true;
 } // </deserialize>
@@ -111,10 +110,10 @@ void WheelSpeed::deserialize(uint8_t* p, size_t size)	{
 const size_t WheelTravel::serialize(uint8_t* p)	{
 	uint8_t* startPtr = p;	// remembering where started
 	pack_u16_bin(&p, dt);
-	pack_i32_bin(&p, fr_rad);
-	pack_i32_bin(&p, fl_rad);
-	pack_i32_bin(&p, br_rad);
-	pack_i32_bin(&p, bl_rad);
+	pack_i32_bin(&p, static_cast<int32_t>(fr_mrad));
+	pack_i32_bin(&p, static_cast<int32_t>(fl_mrad));
+	pack_i32_bin(&p, static_cast<int32_t>(br_mrad));
+	pack_i32_bin(&p, static_cast<int32_t>(bl_mrad));
 
 	return p - startPtr;		// return number of bytes written
 } // </serialize>
@@ -123,10 +122,10 @@ void WheelTravel::deserialize(uint8_t* p, size_t size)	{
 //	if (size != PAYLOAD_SIZE) return false; // check for incomplete pkt	
 	// note: ensure following order/datatype matches that in serialize function
 	dt = unpack_u16_bin(&p);
-	fr_rad = static_cast<float>(unpack_i32_bin(&p));	
-	fl_rad = static_cast<float>(unpack_i32_bin(&p));	
-	br_rad = static_cast<float>(unpack_i32_bin(&p));	
-	bl_rad = static_cast<float>(unpack_i32_bin(&p));	
+	fr_mrad = static_cast<double>(unpack_i32_bin(&p));	
+	fl_mrad = static_cast<double>(unpack_i32_bin(&p));	
+	br_mrad = static_cast<double>(unpack_i32_bin(&p));	
+	bl_mrad = static_cast<double>(unpack_i32_bin(&p));	
 	
 //	return true;
 } // </deserialize>
