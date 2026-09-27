@@ -13,14 +13,13 @@
 #pragma once 		// being lazy
 
 #include <cstdint>
-#include <cstdstring>
 #include <cstddef>
 
 constexpr void pack_u8_bin(uint8_t* &buf, const uint8_t d)	{
 	*buf++ = d;
 }
 
-constexpr uint8_t unpack_u16_bin(uint8_t* &buf)	{
+constexpr uint8_t unpack_u8_bin(uint8_t* &buf)	{
 	// trusting compiler to optimize away temp var
 	return *buf++;
 }
@@ -67,7 +66,7 @@ constexpr int32_t unpack_i32_bin(uint8_t* &buf)	{
 
 }
 
-uint8_t crc8(const uint8_t* data, size_t length)	{
+constexpr uint8_t crc8(const uint8_t* data, size_t length)	{
 	// stolen from chatcbd - not sure it's the most efficient (dbl for loop...)
 	uint8_t crc = 0x00;
 	

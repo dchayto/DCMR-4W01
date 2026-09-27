@@ -23,7 +23,7 @@ static uint8_t MOTOR_PWM[4] { 0, 0, 0, 0 }; // FR, FL, BR, BL
 static int8_t DDIR[4] { 1, 1, 1, 1 }; 	// 1 for fwd, 0 for bkwd
 
 #define MESSAGE_TESTING		// for testing message passing/recieving
-#define DRIVE_ENABLE		// for enabling/disabling PWM commands
+#undef DRIVE_ENABLE		// for enabling/disabling PWM commands
 #undef MOTOR_TESTING
 
 inline void drive()	{
@@ -107,36 +107,6 @@ void setup() {
 //	pinMode(BL_ENCB, INPUT);
 }
 
-// TESTING MOTOR CONTROLS
-#ifdef MOTOR_TESTING
-void loop()	{
-	// testing forward controls
-	stop();
-
-	for (int i = 0; i < 4; ++i)	{
-		DDIR[i] = 1;
-		for (int k = 32; k < 256; k += 32)	{
-			MOTOR_PWM[i] = k;
-			drive();
-			delay(250);
-		}
-	}
-	
-	delay(1000);
-	stop();
-
-	// testing reverse controls	
-	for (int i = 0; i < 4; ++i)	{
-		DDIR[i] = 0;
-		for (int k = 32; k < 256; k += 32)	{
-			MOTOR_PWM[i] = k;
-			drive();
-			delay(250);
-		}
-	}
-	delay(1000);
-}
-#endif
 #ifndef MOTOR_TESTING
 void loop() { 
 	// SAFETY TIMEOUT ON MOTORS
@@ -205,7 +175,12 @@ void loop() {
 		motorTimer = millis();			// reset timer
 
 		#ifdef MESSAGE_TESTING
-		Serial.println(ws.msg); 		// testing message passing
+		static String message_received = " ";
+		message_received = "RECEIVED: {FR: " + ws_mrad_s.fr_mrad_s
+			+ "}  {FL: " + ws_mrad_s.fl_mrad_s
+			+ "}  {BR: " + ws_mrad_s.br_mrad_s
+			+ "}  {BL: " + ws_mrad_s.bl_mrad_s + "}";
+		Serial.println(message_received);
 		#endif
 	}
 
@@ -231,4 +206,36 @@ void loop() {
 	}
 	*/	
 } // </loop>
+#endif
+
+
+// TESTING MOTOR CONTROLS
+#ifdef MOTOR_TESTING
+void loop()	{
+	// testing forward controls
+	stop();
+
+	for (int i = 0; i < 4; ++i)	{
+		DDIR[i] = 1;
+		for (int k = 32; k < 256; k += 32)	{
+			MOTOR_PWM[i] = k;
+			drive();
+			delay(250);
+		}
+	}
+	
+	delay(1000);
+	stop();
+
+	// testing reverse controls	
+	for (int i = 0; i < 4; ++i)	{
+		DDIR[i] = 0;
+		for (int k = 32; k < 256; k += 32)	{
+			MOTOR_PWM[i] = k;
+			drive();
+			delay(250);
+		}
+	}
+	delay(1000);
+}
 #endif

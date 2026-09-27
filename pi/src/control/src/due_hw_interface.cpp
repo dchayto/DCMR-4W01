@@ -38,14 +38,15 @@ public:
 			("wheelspeed", 1,
 			[this](const control::msg::Wheelspeed& wsMsg)
 		{
-			static uint8_t* write_buffer[64]; // assuming messages always well under 64b
+			static uint8_t write_buffer[64]; // assuming messages always well under 64b
 			// set ws_mrad_s_ based on received message, send to due
 			this->ws_mrad_s_.fr_mrad_s = wsMsg.front_right;
 			this->ws_mrad_s_.fl_mrad_s = wsMsg.front_left;
 			this->ws_mrad_s_.br_mrad_s = wsMsg.back_right;
 			this->ws_mrad_s_.bl_mrad_s = wsMsg.back_left;
 
-			static size_t write_size = serialMSG::serializePacket(0, write_buffer, ws_mrad_s);
+			static size_t write_size = serialMSG::serializePacket(0, 
+				write_buffer, ws_mrad_s_);
 			writeSerial(write_buffer, write_size);
 
 			/////////////////////  TESTING MESSAGES //////////////////////
@@ -101,8 +102,8 @@ private:
 	// helper functions
 	void openPort();
 	void closePort();
-	void readSerial(char * buf, size_t bufsize);
-	void writeSerial(char * msg, size_t msgsize);
+	void readSerial(uint8_t* buf, size_t bufsize);
+	void writeSerial(uint8_t* msg, size_t msgsize);
 };
 
 void DueInterfaceNode::closePort()	{
@@ -149,12 +150,12 @@ void DueInterfaceNode::openPort()	{
 	}
 }
 
-void DueInterfaceNode::readSerial(char * buf, size_t bufsize)	{
-	read(serialPort, buf, bufsize);
+void DueInterfaceNode::readSerial(uint8_t* buf, size_t bufsize)	{
+	read(serialPort, reinterpret_cast<char*>(buf), bufsize);
 }
 
-void DueInterfaceNode::writeSerial(char * msg, size_t msgsize)	{
-	write(serialPort, msg, msgsize); 
+void DueInterfaceNode::writeSerial(uint8_t* msg, size_t msgsize)	{
+	write(serialPort, reinterpret_cast<const char*>(msg), msgsize); 
 }
 
 int main(int argc, char** argv)	{

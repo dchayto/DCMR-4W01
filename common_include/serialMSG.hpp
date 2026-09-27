@@ -23,6 +23,8 @@
 
 #include <cstdint>
 
+namespace serialMSG	{
+
 enum MSG_ID : uint8_t	{
 	MSG_WHEELSPEED,
 	MSG_WHEELTRAVEL
@@ -43,7 +45,7 @@ constexpr uint16_t MAGIC_NUMBER { 0xDCDC }; // for packet sync (56540 dec)
 // these two messages between the boards, so not worried about generalizing
 // or abstracting
 
-struct WheelSpeed	{	 // 
+struct WheelSpeed	{
 	// input wheel speed data; default 0-init for safety
 	// could store as double[4], but this seems clearer usage-wise
 	double fr_mrad_s { 0.0 }; // front right wheel speed command
@@ -56,18 +58,18 @@ struct WheelSpeed	{	 //
 	static constexpr uint8_t TYPE = MSG_ID::MSG_WHEELSPEED;
 
 	// helper prototypes
-	const size_t serialize(uint8_t* p);
-	bool deserialize(uint8_t* p, size_t size);	
+	size_t serialize(uint8_t* p);
+	void deserialize(uint8_t* p);	
 
 }; // </struct WheelSpeed>
 
 struct WheelTravel	{
 	// delta wheel angular travel (del_theta), mrad
-	uint16_t dt;			// dt since last message (ms)
+	double fr_mrad;
 	double fl_mrad;
-	double fr_mrad:
 	double br_mrad;
 	double bl_mrad;
+	uint16_t dt;			// dt since last message (ms)
 
 	// wire format of payload is 1 uint16_t + 4x int32_t
 	static constexpr uint8_t PAYLOAD_SIZE = static_cast<uint8_t>(
@@ -75,8 +77,8 @@ struct WheelTravel	{
 	static constexpr uint8_t TYPE = MSG_ID::MSG_WHEELTRAVEL;
 	
 	// helper prototypes
-	const size_t serialize(uint8_t* p);
-	bool deserialize(uint8_t* p, size_t size);	
+	size_t serialize(uint8_t* p);
+	void deserialize(uint8_t* p);	
 }; // </struct WheelTravel>
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -84,22 +86,22 @@ struct WheelTravel	{
 ///////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////// wheelspeed helpers /////////////////////////////
-const size_t WheelSpeed::serialize(uint8_t* p)	{
+size_t WheelSpeed::serialize(uint8_t* p)	{
 	uint8_t* startPtr = p;	// remembering where started
-	pack_i32_bin(&p, static_cast<int32_t>(fr_mrad_s));
-	pack_i32_bin(&p, static_cast<int32_t>(fl_mrad_s));
-	pack_i32_bin(&p, static_cast<int32_t>(br_mrad_s));
-	pack_i32_bin(&p, static_cast<int32_t>(bl_mrad_s));
+	pack_i32_bin(p, static_cast<int32_t>(fr_mrad_s));
+	pack_i32_bin(p, static_cast<int32_t>(fl_mrad_s));
+	pack_i32_bin(p, static_cast<int32_t>(br_mrad_s));
+	pack_i32_bin(p, static_cast<int32_t>(bl_mrad_s));
 	return p - startPtr;		// return number of bytes written
 } // </serialize>
 
 void WheelSpeed::deserialize(uint8_t* p)	{
 //	if (size != PAYLOAD_SIZE) return false; // check for poorly formed pkt	
 	// note: ensure following order/datatype matches that in serialize function
-	fr_mrad_s = static_cast<double>(unpack_i32_bin(&p));	
-	fl_mrad_s = static_cast<double>(unpack_i32_bin(&p));	
-	br_mrad_s = static_cast<double>(unpack_i32_bin(&p));	
-	bl_mrad_s = static_cast<double>(unpack_i32_bin(&p));	
+	fr_mrad_s = static_cast<double>(unpack_i32_bin(p));	
+	fl_mrad_s = static_cast<double>(unpack_i32_bin(p));	
+	br_mrad_s = static_cast<double>(unpack_i32_bin(p));	
+	bl_mrad_s = static_cast<double>(unpack_i32_bin(p));	
 	
 //	return true;
 } // </deserialize>
@@ -107,13 +109,13 @@ void WheelSpeed::deserialize(uint8_t* p)	{
 
 
 ///////////////////////////// wheel travel helpers ////////////////////////////
-const size_t WheelTravel::serialize(uint8_t* p)	{
+size_t WheelTravel::serialize(uint8_t* p)	{
 	uint8_t* startPtr = p;	// remembering where started
-	pack_u16_bin(&p, dt);
-	pack_i32_bin(&p, static_cast<int32_t>(fr_mrad));
-	pack_i32_bin(&p, static_cast<int32_t>(fl_mrad));
-	pack_i32_bin(&p, static_cast<int32_t>(br_mrad));
-	pack_i32_bin(&p, static_cast<int32_t>(bl_mrad));
+	pack_u16_bin(p, dt);
+	pack_i32_bin(p, static_cast<int32_t>(fr_mrad));
+	pack_i32_bin(p, static_cast<int32_t>(fl_mrad));
+	pack_i32_bin(p, static_cast<int32_t>(br_mrad));
+	pack_i32_bin(p, static_cast<int32_t>(bl_mrad));
 
 	return p - startPtr;		// return number of bytes written
 } // </serialize>
@@ -121,11 +123,11 @@ const size_t WheelTravel::serialize(uint8_t* p)	{
 void WheelTravel::deserialize(uint8_t* p)	{
 //	if (size != PAYLOAD_SIZE) return false; // check for incomplete pkt	
 	// note: ensure following order/datatype matches that in serialize function
-	dt = unpack_u16_bin(&p);
-	fr_mrad = static_cast<double>(unpack_i32_bin(&p));	
-	fl_mrad = static_cast<double>(unpack_i32_bin(&p));	
-	br_mrad = static_cast<double>(unpack_i32_bin(&p));	
-	bl_mrad = static_cast<double>(unpack_i32_bin(&p));	
+	dt = unpack_u16_bin(p);
+	fr_mrad = static_cast<double>(unpack_i32_bin(p));	
+	fl_mrad = static_cast<double>(unpack_i32_bin(p));	
+	br_mrad = static_cast<double>(unpack_i32_bin(p));	
+	bl_mrad = static_cast<double>(unpack_i32_bin(p));	
 	
 //	return true;
 } // </deserialize>
@@ -133,16 +135,16 @@ void WheelTravel::deserialize(uint8_t* p)	{
 
 
 /////////////////////////// full packet serialization /////////////////////////
-template <typename payload>
-size_t serializePacket(uint8_t seq, const uint8_t* buf, const &payload msg)	{
+template <typename T>
+size_t serializePacket(uint8_t seq, uint8_t* const buf, T& payload)	{
 	uint8_t* p = buf;
 
 	// write packet:
 	pack_u16_bin(p, MAGIC_NUMBER);	
-	pack_u8_bin(p, msg::TYPE);
-	pack_u8_bin(p, msg::PAYLOAD_SIZE);
+	pack_u8_bin(p, payload.TYPE);
+	pack_u8_bin(p, payload.PAYLOAD_SIZE);
 	pack_u8_bin(p, seq);
-	msg.serialize(p);
+	payload.serialize(p);
 	uint8_t crc = crc8(buf, p - buf);	// compute CRC
 	pack_u8_bin(p, crc);	
 
@@ -156,8 +158,8 @@ size_t serializePacket(uint8_t seq, const uint8_t* buf, const &payload msg)	{
 // the sequence number via the reference parameter, and a pointer to the start
 // of the payload via the function parameter (if found)
 // reminder: [MAGIC_NUMBER][TYPE][SEQUENCE][PAYLOAD][CRC-8]
-uint8_t* parsePacket(uint8_t& seq, const uint8_t* packet)	{
-	const uint8_t* p = packet;	
+uint8_t* parsePacket(uint8_t& seq, uint8_t* const packet)	{
+	uint8_t* p = packet;	
 	if (unpack_u16_bin(p) != MAGIC_NUMBER) return nullptr;	// invalid start
 	
 	// read in rest of header 
@@ -184,5 +186,7 @@ uint8_t* parsePacket(uint8_t& seq, const uint8_t* packet)	{
 	else return payloadPtr;
 }
 /////////////////////////////// end packet parser /////////////////////////////
+
+}
 
 #endif
