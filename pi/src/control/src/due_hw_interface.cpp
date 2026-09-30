@@ -27,7 +27,7 @@
 #define SUBSCRIPTION_RECEIVE_TESTING
 #define MC_MESSAGE_TESTING
 
-class DueInterfaceNode : public rclcpp::Node
+class DueInterfaceNode : public rclcpp::Node	
 {
 public:
 	DueInterfaceNode() : Node("due_interface_node")		{
@@ -35,9 +35,8 @@ public:
 
 		// SUBSCRIBERS
 		ws_subscription = this->create_subscription<control::msg::Wheelspeed>
-			("wheelspeed", 1,
-			[this](const control::msg::Wheelspeed& wsMsg)
-		{
+				("wheelspeed", 1,
+				[this](const control::msg::Wheelspeed& wsMsg)		{
 			static uint8_t write_buffer[64]; // assuming messages always well under 64b
 			// set ws_mrad_s_ based on received message, send to due
 			this->ws_mrad_s_.fr_mrad_s = wsMsg.front_right;
@@ -58,6 +57,8 @@ public:
 			std::cout << std::flush;
 			#endif
 			#ifdef MC_MESSAGE_TESTING
+			std::cout << "Attempting to write wheelspeed message (" 
+					<< write_size << "b):" << std::endl;
 			std::cout.write(reinterpret_cast<const char*>(write_buffer), write_size);
 			std::cout << std::endl << std::flush;
 			#endif

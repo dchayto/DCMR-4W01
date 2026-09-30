@@ -22,8 +22,10 @@ static serialMSG::WheelTravel wt_mrad { };
 static uint8_t MOTOR_PWM[4] { 0, 0, 0, 0 }; // FR, FL, BR, BL
 static int8_t DDIR[4] { 1, 1, 1, 1 }; 	// 1 for fwd, 0 for bkwd
 
-#define MESSAGE_TESTING		// for testing message passing/recieving
 #undef DRIVE_ENABLE		// for enabling/disabling PWM commands
+
+#undef MESSAGEIN_TESTING		// for testing message recieving
+#undef MESSAGEOUT_TESTING		// for testing message passing
 #undef MOTOR_TESTING
 
 inline void drive()	{
@@ -105,6 +107,15 @@ void setup() {
 	pinMode(BL_PWM, OUTPUT);	analogWrite(BL_PWM, 0);
 //	pinMode(BL_ENCA, INPUT);
 //	pinMode(BL_ENCB, INPUT);
+	
+
+	#ifdef MESSAGEIN_TESTING
+	// send ack message through serial port
+	Serial.println("due online");
+	if (Serial.available()) Serial.println("data available in serial buffer");
+	else Serial.println("no data available in serial buffer");
+	#endif
+
 }
 
 #ifndef MOTOR_TESTING
@@ -113,10 +124,12 @@ void loop() {
 	static unsigned long motorTimer { millis() };
 	static constexpr unsigned long MOTOR_TIMEOUT { 1500 }; // time out after 1.5s
 	if ((millis() - motorTimer) > MOTOR_TIMEOUT)	{
-		ws.setWheelSpeed(0, 0, 0, 0);
+		ws_mrad_s.fr_mrad_s = 0.0;
+		ws_mrad_s.fl_mrad_s = 0.0;
+		ws_mrad_s.br_mrad_s = 0.0;
+		ws_mrad_s.bl_mrad_s = 0.0;
 		drive();
 	}
-
 
 	using namespace serialMSG;
 
@@ -125,7 +138,7 @@ void loop() {
 	// NOTE: nomenclature here is a bit confusing: searching backwards through
 	//		 ring buffer, so using head as most recent element, tail as oldest
 	static constexpr uint8_t BUFFER_SIZE { 128 }; // enough for 2 full serial buffers
-	static char input_buffer[BUFFER_SIZE];	// ring buffer for serial data 
+	static uint8_t input_buffer[BUFFER_SIZE];	// ring buffer for serial data 
 	static uint8_t head { 0 };	// head (write) for buffer)
 	static uint8_t tail { 0 };	// tail (read) for buffer
 
@@ -139,32 +152,36 @@ void loop() {
 	// pos ahead of tail), look for message between head-MSG_SIZE and tail
 	// NOTE: not bothering with sequence number for wheelspeed messages, since
 	// only processing latest message, which is handled by head/tail
-	if ((head > tail ? head - tail : head + BUFFER_SIZE - tail) > WheelSpeed::PAYLOAD_SIZE)	{
+	if ((head >= tail ? head - tail : head + BUFFER_SIZE - tail) 
+												>= WheelSpeed::MSG_SIZE)	{
 		// starting at HEAD - PAYLOAD_SIZE -- don't have full message size, so
 		// this is as close as it's getting to first possible valid packet
 		// (allows skipping parsing packets that are obviously incomplete)
 		// look backwards through input buffer for start of frame (i.e., check
 		// for magic number), stopping if tail reached
 		static uint8_t startpos;
-		
+		static uint8_t ws_seq { 0 }; 	// don't care about seq
+
 		// start at position of head less one message
-		startpos = (head - WheelSpeed::PAYLOAD_SIZE) & (BUFFER_SIZE - 1);
-
+		startpos = (head - WheelSpeed::MSG_SIZE) & (BUFFER_SIZE - 1);
+		
 		// loop through until reaching tail (location of last parsed msg)
-		for (uint8_t searchidx = startpos; searchidx != tail; 
-			--searchidx &= BUFFER_SIZE - 1)	{
-			
+		for (uint8_t searchidx = startpos; 
+					searchidx != ((tail - 1) & BUFFER_SIZE - 1); 
+					--searchidx &= BUFFER_SIZE - 1)	{
+			Serial.print("Current search index: ");
+			Serial.println(searchidx);
 			static uint8_t* msgStart = nullptr;
-			msg = parsePacket(buffer + searchidx);	
+			msgStart = parsePacket(ws_seq, input_buffer + searchidx);	
 
-			if (msg != nullptr)	{
-				ws_mrad_s::deserialize(msg);
+			if (msgStart != nullptr)	{
+				ws_mrad_s.deserialize(msgStart);
 				CMD_FLAG |= WHEELCMD_RECEIVED;	// note that command recieved
 				break;	// stop loop early; found start of message	
 			}
 		} // end of buffer parsing
 
-		tail = searchpos;	// set tail to latest parsed value
+		tail = startpos;	// set tail to latest parsed value
 	} // end of conditional 
 
 
@@ -173,13 +190,19 @@ void loop() {
 		drive();						// send command to motors
 		CMD_FLAG &= ~WHEELCMD_RECEIVED;	// unset flag
 		motorTimer = millis();			// reset timer
+		tail = head;					// only process msg once
 
-		#ifdef MESSAGE_TESTING
-		static String message_received = " ";
-		message_received = "RECEIVED: {FR: " + ws_mrad_s.fr_mrad_s
-			+ "}  {FL: " + ws_mrad_s.fl_mrad_s
-			+ "}  {BR: " + ws_mrad_s.br_mrad_s
-			+ "}  {BL: " + ws_mrad_s.bl_mrad_s + "}";
+		#ifdef MESSAGEIN_TESTING
+		static String message_received;
+		message_received = "RECEIVED: {FR: ";
+		message_received += ws_mrad_s.fr_mrad_s;
+		message_received += "}  {FL: ";
+		message_received +=	ws_mrad_s.fl_mrad_s;
+		message_received += "}  {BR: ";
+		message_received += ws_mrad_s.br_mrad_s;
+		message_received += "}  {BL: ";
+		message_received += ws_mrad_s.bl_mrad_s;
+		message_received += "}";
 		Serial.println(message_received);
 		#endif
 	}

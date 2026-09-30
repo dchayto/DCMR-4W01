@@ -19,9 +19,15 @@
 #ifndef __SERIAL_MSGS_H__
 #define __SERIAL_MSGS_H__
 
+#undef TESTING
+
 #include "serialize.hpp"
 
 #include <cstdint>
+
+#ifdef TESTING 
+#include <iostream> 
+#endif
 
 namespace serialMSG	{
 
@@ -31,11 +37,12 @@ enum MSG_ID : uint8_t	{
 };
 
 constexpr uint16_t MAGIC_NUMBER { 0xDCDC }; // for packet sync (56540 dec)
-//static constexpr size_t HEADER_SIZE =
-//	sizeof(MAGIC_NUMBER) 	+ 
-//	sizeof(MSG_ID) 			+
-//	sizeof(uint8_t)			+ 	// payload size - don't love the magic number
-//	sizeof(uint8_t);	// sequence number - again, don't love this being a mn
+static constexpr uint8_t FRAMING_SIZE = static_cast<uint8_t>(
+	sizeof(MAGIC_NUMBER) 	+ 
+	sizeof(MSG_ID) 			+
+	sizeof(uint8_t)			+	// seq number - don't love this being a mn
+	sizeof(decltype(crc8(nullptr, 0)))	// size of crc8
+);
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -55,29 +62,33 @@ struct WheelSpeed	{
 
 	// wire format of payload is 4x int32_t
 	static constexpr uint8_t PAYLOAD_SIZE = static_cast<uint8_t>(4 * sizeof(int32_t));
+	static constexpr uint8_t MSG_SIZE = PAYLOAD_SIZE + FRAMING_SIZE;
 	static constexpr uint8_t TYPE = MSG_ID::MSG_WHEELSPEED;
 
 	// helper prototypes
-	size_t serialize(uint8_t* p);
+	size_t serialize(uint8_t* &p);
 	void deserialize(uint8_t* p);	
 
 }; // </struct WheelSpeed>
 
 struct WheelTravel	{
 	// delta wheel angular travel (del_theta), mrad
+	// i know putting uint16 is bad for struct packing, but seemed more
+	// use-intuitive - shouldn't affect wire size anyways
+	uint16_t dt;			// dt since last message (ms)
 	double fr_mrad;
 	double fl_mrad;
 	double br_mrad;
 	double bl_mrad;
-	uint16_t dt;			// dt since last message (ms)
 
 	// wire format of payload is 1 uint16_t + 4x int32_t
 	static constexpr uint8_t PAYLOAD_SIZE = static_cast<uint8_t>(
 		sizeof(uint16_t) + 4 * sizeof(int32_t));
+	static constexpr uint8_t MSG_SIZE = PAYLOAD_SIZE + FRAMING_SIZE;
 	static constexpr uint8_t TYPE = MSG_ID::MSG_WHEELTRAVEL;
 	
 	// helper prototypes
-	size_t serialize(uint8_t* p);
+	size_t serialize(uint8_t* &p);
 	void deserialize(uint8_t* p);	
 }; // </struct WheelTravel>
 
@@ -86,7 +97,9 @@ struct WheelTravel	{
 ///////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////// wheelspeed helpers /////////////////////////////
-size_t WheelSpeed::serialize(uint8_t* p)	{
+size_t WheelSpeed::serialize(uint8_t* &p)	{
+	if (p == nullptr) 	return 0;
+
 	uint8_t* startPtr = p;	// remembering where started
 	pack_i32_bin(p, static_cast<int32_t>(fr_mrad_s));
 	pack_i32_bin(p, static_cast<int32_t>(fl_mrad_s));
@@ -96,7 +109,8 @@ size_t WheelSpeed::serialize(uint8_t* p)	{
 } // </serialize>
 
 void WheelSpeed::deserialize(uint8_t* p)	{
-//	if (size != PAYLOAD_SIZE) return false; // check for poorly formed pkt	
+	if (p == nullptr) 	return;
+
 	// note: ensure following order/datatype matches that in serialize function
 	fr_mrad_s = static_cast<double>(unpack_i32_bin(p));	
 	fl_mrad_s = static_cast<double>(unpack_i32_bin(p));	
@@ -109,7 +123,9 @@ void WheelSpeed::deserialize(uint8_t* p)	{
 
 
 ///////////////////////////// wheel travel helpers ////////////////////////////
-size_t WheelTravel::serialize(uint8_t* p)	{
+size_t WheelTravel::serialize(uint8_t* &p)	{
+	if (p == nullptr) 	return 0;
+
 	uint8_t* startPtr = p;	// remembering where started
 	pack_u16_bin(p, dt);
 	pack_i32_bin(p, static_cast<int32_t>(fr_mrad));
@@ -121,7 +137,8 @@ size_t WheelTravel::serialize(uint8_t* p)	{
 } // </serialize>
 
 void WheelTravel::deserialize(uint8_t* p)	{
-//	if (size != PAYLOAD_SIZE) return false; // check for incomplete pkt	
+	if (p == nullptr)	return;
+
 	// note: ensure following order/datatype matches that in serialize function
 	dt = unpack_u16_bin(p);
 	fr_mrad = static_cast<double>(unpack_i32_bin(p));	
@@ -137,14 +154,17 @@ void WheelTravel::deserialize(uint8_t* p)	{
 /////////////////////////// full packet serialization /////////////////////////
 template <typename T>
 size_t serializePacket(uint8_t seq, uint8_t* const buf, T& payload)	{
+	// reminder: [MAGIC_NUMBER][TYPE][SEQUENCE][PAYLOAD][CRC-8]
+	if (buf == nullptr)		return 0;
+
 	uint8_t* p = buf;
 
 	// write packet:
 	pack_u16_bin(p, MAGIC_NUMBER);	
 	pack_u8_bin(p, payload.TYPE);
-	pack_u8_bin(p, payload.PAYLOAD_SIZE);
 	pack_u8_bin(p, seq);
-	payload.serialize(p);
+	payload.serialize(p); 	//	not writing anything to buffer... 
+
 	uint8_t crc = crc8(buf, p - buf);	// compute CRC
 	pack_u8_bin(p, crc);	
 
@@ -157,14 +177,16 @@ size_t serializePacket(uint8_t seq, uint8_t* const buf, T& payload)	{
 // check to make sure the packet is valid (check CRC), and if valid, return
 // the sequence number via the reference parameter, and a pointer to the start
 // of the payload via the function parameter (if found)
-// reminder: [MAGIC_NUMBER][TYPE][SEQUENCE][PAYLOAD][CRC-8]
 uint8_t* parsePacket(uint8_t& seq, uint8_t* const packet)	{
+	// reminder: [MAGIC_NUMBER][TYPE][SEQUENCE][PAYLOAD][CRC-8]
+	if (packet == nullptr)	return nullptr;
+
 	uint8_t* p = packet;	
 	if (unpack_u16_bin(p) != MAGIC_NUMBER) return nullptr;	// invalid start
 	
 	// read in rest of header 
 	uint8_t type = unpack_u8_bin(p);
-	seq = unpack_u16_bin(p);		// assign seq to return parameter
+	seq = unpack_u8_bin(p);		// assign seq to return parameter
 	uint8_t* payloadPtr = p;		// next read is first item in payload
 
 	switch(type)
@@ -188,5 +210,50 @@ uint8_t* parsePacket(uint8_t& seq, uint8_t* const packet)	{
 /////////////////////////////// end packet parser /////////////////////////////
 
 }
+
+
+#ifdef TESTING
+int main()	{
+	using namespace serialMSG;
+
+	// define example wheeltravel message, print basic info about message
+	WheelTravel wt { 2, 1.0, 1.0, 0.0, 1.0 };
+	std::cout << "WheelTravel message (type " << +wt.TYPE 
+		<< "): { dt: " << wt.dt
+		<< ", FR: " << wt.fr_mrad 
+		<< ", FL: " << wt.fl_mrad << " BR: " << wt.br_mrad
+		<< " BL: " << wt.bl_mrad << " }" << std::endl;
+	std::cout << "Framing size (computed separately): " << +FRAMING_SIZE << std::endl;
+	std::cout << "Payload size (computed manually): " << +wt.PAYLOAD_SIZE << std::endl;
+	std::cout << "Message size (payload + framing): " << +wt.MSG_SIZE << std::endl;
+	
+	// attempt to encode wheelspeed message
+	uint8_t buffer [64];
+	size_t write_size = serializePacket(1, buffer, wt);	
+	std::cout << std::endl << "Bytes written: " << write_size 
+		<< std::endl << "Buffer contents:";
+	for (size_t i = 0; i < write_size; ++i)	{
+		std::cout << " " << +buffer[i];
+	}
+	std::cout << std::endl;
+
+	// attempt to decode wheelspeed message
+	uint8_t seq { 1 };
+	uint8_t* payloadPtr = parsePacket(seq, buffer); 
+	if (payloadPtr == nullptr)	{
+		std::cout << "Could not decode packet. An issue exists either with "
+			<< "packet encoding or with parser." << std::endl;
+	} else	{
+		std::cout << "Payload parsed to be at idx " << +(payloadPtr - buffer) << std::endl;
+		wt.deserialize(payloadPtr);
+		std::cout << "Decoded message: { dt: " << wt.dt
+			<< ", FR: " << wt.fr_mrad 
+			<< ", FL: " << wt.fl_mrad << " BR: " << wt.br_mrad
+			<< " BL: " << wt.bl_mrad << " } " << std::endl;
+	}
+
+	return 0;
+}
+#endif
 
 #endif

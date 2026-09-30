@@ -6,6 +6,9 @@
 	NOTE: all functions move the pointer for the buffer they're passed in
 	as data is read or written
 
+	NOTE: not checking for valid pointer on this level - trusting valid pointer
+	passed in
+
     auth: @dchayto                                                              
                                                                                    
  */    
@@ -15,21 +18,21 @@
 #include <cstdint>
 #include <cstddef>
 
-constexpr void pack_u8_bin(uint8_t* &buf, const uint8_t d)	{
+void pack_u8_bin(uint8_t* &buf, const uint8_t d)	{
 	*buf++ = d;
 }
 
-constexpr uint8_t unpack_u8_bin(uint8_t* &buf)	{
+uint8_t unpack_u8_bin(uint8_t* &buf)	{
 	// trusting compiler to optimize away temp var
 	return *buf++;
 }
 
-constexpr void pack_u16_bin(uint8_t* &buf, const uint16_t d)	{
+void pack_u16_bin(uint8_t* &buf, const uint16_t d)	{
 	*buf++ = static_cast<uint8_t>(d);
 	*buf++ = static_cast<uint8_t>(d >> 8);
 }
 
-constexpr uint16_t unpack_u16_bin(uint8_t* &buf)	{
+uint16_t unpack_u16_bin(uint8_t* &buf)	{
 //	// trusting compiler to optimize away temp var
 //	uint16_t val = static_cast<uint16_t>(buf[0])
 //		| (static_cast<uint16_t>(buf[1]) << 8); 
@@ -40,7 +43,7 @@ constexpr uint16_t unpack_u16_bin(uint8_t* &buf)	{
 		| (static_cast<int32_t>(*buf++) << 8);
 }
 
-constexpr void pack_i32_bin(uint8_t* &buf, const int32_t d)	{
+void pack_i32_bin(uint8_t* &buf, const int32_t d)	{
 	// derefing buff then post increment to move ptr
 	*buf++ = static_cast<uint8_t>(d);
 	*buf++ = static_cast<uint8_t>(d >> 8);
@@ -48,7 +51,7 @@ constexpr void pack_i32_bin(uint8_t* &buf, const int32_t d)	{
 	*buf++ = static_cast<uint8_t>(d >> 24);
 }
 
-constexpr int32_t unpack_i32_bin(uint8_t* &buf)	{
+int32_t unpack_i32_bin(uint8_t* &buf)	{
 //	it's probably not actually worth "optimizing" this but what the hell	
 //	int32_t val = static_cast<int32_t>(buf[0])
 //		| (static_cast<int32_t>(buf[1]) << 8)
@@ -66,14 +69,14 @@ constexpr int32_t unpack_i32_bin(uint8_t* &buf)	{
 
 }
 
-constexpr uint8_t crc8(const uint8_t* data, size_t length)	{
+uint8_t crc8(const uint8_t* data, size_t length)	{
 	// stolen from chatcbd - not sure it's the most efficient (dbl for loop...)
 	uint8_t crc = 0x00;
 	
 	for (size_t i = 0; i < length; ++i)	{
 		crc ^= data[i];
 		for (int bit = 0; bit < 8; ++bit)	{
-			if (crc & 0x80)		crc = (crc << 1) ^ 0x07;
+			if (crc & 0x80)		{ crc = (crc << 1) ^ 0x07; }
 			else	crc <<= 1;
 		}
 	}
