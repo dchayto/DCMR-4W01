@@ -15,7 +15,9 @@
 #include "include/pin_defines.hpp"
 #include "include/cmd_flag.hpp"
 #include "include/encoder.hpp"
+
 #include "serialMSG.hpp"
+#include "PID.hpp"
 
 static serialMSG::WheelSpeed ws_mrad_s { };
 static serialMSG::WheelTravel wt_mrad { };
@@ -26,7 +28,7 @@ static int8_t DDIR[4] { 1, 1, 1, 1 }; 	// 1 for fwd, 0 for bkwd
 
 #undef MESSAGEIN_TESTING		// for testing message recieving
 #undef MESSAGEOUT_TESTING		// for testing message passing
-#undef MOTOR_TESTING
+#undef MOTOR_TESTING			// for testing motor hardware
 
 inline void drive()	{
 	// drive pins based on current status of control vars (PWM, DDIR)
@@ -56,26 +58,6 @@ inline void stop()	{
 	drive();
 }
 
-inline void rampPWM()	{
-	// send pwm commands based on current input ws, state of PWM array, and 
-	// reverse flags, taking old PWM array for starting point
-
-	// what this should be doing is turning the PWM inputs and drive direction
-	// into [-256 256] linear scale, doing math based on this scale, then re-
-	// converting into [0 256] PWM input with a driving direction to write
-
-
-	// MAKE SURE TO RAMP INPUTS
-	// probably ok to just make any given input change take the same number
-	// of cycles (as opposed to e.g., just inc by 1 for everything until gets
-	// to desired number)
-	// -> can do in 8 cycles by taking step as (num2 - num1) >> 3; however,
-	// this makes anything with a gap of less than 8 happen instantly on last
-	// step (should be making last item the final step anyways to handle
-	// rounding errors)
-
-}
-
 void setup() {
 	// configure serial port
 	Serial.begin(57600); 	// ensure this matches baud rate on pi
@@ -87,27 +69,20 @@ void setup() {
 	pinMode(FR_FWD, OUTPUT);	digitalWrite(FR_FWD, 0);
 	pinMode(FR_REV, OUTPUT);	digitalWrite(FR_REV, 0);
 	pinMode(FR_PWM, OUTPUT);	analogWrite(FR_PWM, 0);
-//	pinMode(FR_ENCA, INPUT);
-//	pinMode(FR_ENCB, INPUT);
 	
 	pinMode(FL_FWD, OUTPUT);	digitalWrite(FL_FWD, 0);
 	pinMode(FL_REV, OUTPUT);	digitalWrite(FL_REV, 0);
 	pinMode(FL_PWM, OUTPUT);	analogWrite(FL_PWM, 0);
-//	pinMode(FL_ENCA, INPUT);
-//	pinMode(FL_ENCB, INPUT);
 	
 	pinMode(BR_FWD, OUTPUT);	digitalWrite(BR_FWD, 0);
 	pinMode(BR_REV, OUTPUT);	digitalWrite(BR_REV, 0);
 	pinMode(BR_PWM, OUTPUT);	analogWrite(BR_PWM, 0);
-//	pinMode(BR_ENCA, INPUT);
-//	pinMode(BR_ENCB, INPUT);
 	
 	pinMode(BL_FWD, OUTPUT);	digitalWrite(BL_FWD, 0);
 	pinMode(BL_REV, OUTPUT);	digitalWrite(BL_REV, 0);
 	pinMode(BL_PWM, OUTPUT);	analogWrite(BL_PWM, 0);
-//	pinMode(BL_ENCA, INPUT);
-//	pinMode(BL_ENCB, INPUT);
 	
+	initEncoders();
 
 	#ifdef MESSAGEIN_TESTING
 	// send ack message through serial port
@@ -154,23 +129,15 @@ void loop() {
 	// only processing latest message, which is handled by head/tail
 	if ((head >= tail ? head - tail : head + BUFFER_SIZE - tail) 
 												>= WheelSpeed::MSG_SIZE)	{
-		// starting at HEAD - PAYLOAD_SIZE -- don't have full message size, so
-		// this is as close as it's getting to first possible valid packet
-		// (allows skipping parsing packets that are obviously incomplete)
-		// look backwards through input buffer for start of frame (i.e., check
-		// for magic number), stopping if tail reached
+		// look bkwds thru input buf 4 start of frame, stop if tail reached
 		static uint8_t startpos;
 		static uint8_t ws_seq { 0 }; 	// don't care about seq
 
-		// start at position of head less one message
 		startpos = (head - WheelSpeed::MSG_SIZE) & (BUFFER_SIZE - 1);
-		
 		// loop through until reaching tail (location of last parsed msg)
 		for (uint8_t searchidx = startpos; 
-					searchidx != ((tail - 1) & BUFFER_SIZE - 1); 
-					--searchidx &= BUFFER_SIZE - 1)	{
-			Serial.print("Current search index: ");
-			Serial.println(searchidx);
+								searchidx != ((tail - 1) & BUFFER_SIZE - 1); 
+											--searchidx &= BUFFER_SIZE - 1)	{
 			static uint8_t* msgStart = nullptr;
 			msgStart = parsePacket(ws_seq, input_buffer + searchidx);	
 
@@ -180,54 +147,92 @@ void loop() {
 				break;	// stop loop early; found start of message	
 			}
 		} // end of buffer parsing
-
 		tail = startpos;	// set tail to latest parsed value
-	} // end of conditional 
+	} // end of message received conditional 
 
 
-	// if command to wheels received, handle now
+	{	// scope definition for PIDs
+	static constexpr double p_wheel { 0.1 };
+	static constexpr double i_wheel { 0.0 };
+	static constexpr double d_wheel { 0.0 };
+
+	static PID frPID { p_wheel, i_wheel, d_wheel };
+	static PID flPID { p_wheel, i_wheel, d_wheel };
+	static PID brPID { p_wheel, i_wheel, d_wheel };
+	static PID blPID { p_wheel, i_wheel, d_wheel };
+	
+	// PWM loop - just roughing out, not dealing with this yet
+	if (0) {
+		static double e_fr { 0.0 };
+		static double e_fl { 0.0 };
+		static double e_br { 0.0 };
+		static double e_bl { 0.0 };
+
+		e_fr = frPID.correct(ENC_TO_MRAD(fr_enc_count), dtPID);
+		e_fl = flPID.correct(ENC_TO_MRAD(fl_enc_count), dtPID);
+		e_br = brPID.correct(ENC_TO_MRAD(br_enc_count), dtPID);
+		e_bl = blPID.correct(ENC_TO_MRAD(bl_enc_count), dtPID);
+
+		auto generatePWM = [](double error, uint8_t& mPWM, int8_t& dDir)	{
+			if (error >= 0)	{
+				dDir = 1;
+			} else	{
+				dDir = 0;
+				error = -error;
+			}
+			mPWM = (error < 255.0 ? static_cast<uint8_t>(error) : 255);
+		}
+
+		generatePWM(e_fr, MOTOR_PWM[0], DDIR[0]);
+		generatePWM(e_fl, MOTOR_PWM[1], DDIR[1]);
+		generatePWM(e_br, MOTOR_PWM[2], DDIR[2]);
+		generatePWM(e_bl, MOTOR_PWM[3], DDIR[3]);
+			
+		drive();
+	}
+
+	// if command to wheels received, process now
 	if (CMD_FLAG & WHEELCMD_RECEIVED)	{
-		drive();						// send command to motors
 		CMD_FLAG &= ~WHEELCMD_RECEIVED;	// unset flag
 		motorTimer = millis();			// reset timer
 		tail = head;					// only process msg once
 
+		// reset PIDs
+		frPID.reset();
+		flPID.reset();
+		brPID.reset();
+		blPID.reset();
+
 		#ifdef MESSAGEIN_TESTING
-		static String message_received;
-		message_received = "RECEIVED: {FR: ";
-		message_received += ws_mrad_s.fr_mrad_s;
-		message_received += "}  {FL: ";
-		message_received +=	ws_mrad_s.fl_mrad_s;
-		message_received += "}  {BR: ";
-		message_received += ws_mrad_s.br_mrad_s;
-		message_received += "}  {BL: ";
-		message_received += ws_mrad_s.bl_mrad_s;
-		message_received += "}";
-		Serial.println(message_received);
+		static String msgin;
+		msgin="RECEIVED: {FR: ";msgin+=ws_mrad_s.fr_mrad_s;msgin+="}  {FL: ";msgin+=ws_mrad_s.fl_mrad_s;msgin+="}  {BR: ";msgin+=ws_mrad_s.br_mrad_s;msgin+="}  {BL: ";msgin+=ws_mrad_s.bl_mrad_s;msgin+="}";
+		Serial.println(msgin);
 		#endif
 	}
+	} // scope definition for PIDs
 
-	/* COMMENTING OUT WHILE TESTING BASIC COMMS
+
 	// read encoder data
-
-	// send encoder data to helper functions for processing (_if_ doing onboard)
-		// while same input sending, monitor encoder data and make sure
-		// matches intended input - if not, do minor course correction to pwm 
-
-	// should be returning velocity vector generated from encoder,
-	// plus distance travelled based on encoder data since last polling
-	// (not sure if distance travelled should be calculated here or elsewhere
-	// - may just do here)
-
 	static const int ENCODER_TIMER { 1000 }; 	// 1 sec freq for sending enc data
-	// scheduling sending data
+	static uint8_t encoder_buffer[32];
+	static uint8_t enc_seq { 0 };
 	static unsigned long timeOfLastSend { millis() };
+	// send encoder message
 	if ((millis() - timeOfLastSend) > ENCODER_TIMER)	{
+		wt_mrad.fr_mrad = ENC_TO_MRAD(fr_enc_count);
+		wt_mrad.fl_mrad = ENC_TO_MRAD(fl_enc_count);
+		wt_mrad.br_mrad = ENC_TO_MRAD(br_enc_count);
+		wt_mrad.bl_mrad = ENC_TO_MRAD(bl_enc_count);
+
+		// serialize and write message
+		static size_t bytes_written;
+		bytes_written = serializePacket(enc_seq++, encoder_buffer, wt_mrad);
+		Serial.write(encoder_buffer, bytes_written);
+		
 		timeOfLastSend = millis();	// reset timer
-		//Serial.write(buffer, length);
-		// for now, just going to send a simple string back and forth
+		resetEncoder();
 	}
-	*/	
+
 } // </loop>
 #endif
 
