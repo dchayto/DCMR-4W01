@@ -17,9 +17,11 @@
 #include <iostream>
 #include <cstdlib>
 #include <cstring>	// for strerror
+#include <chrono>	// for ms
 
 #include "rclcpp/rclcpp.hpp"
 #include "control/msg/wheelspeed.hpp"
+#include "control/msg/wheeltravel.hpp"
 
 #include "serialMSG.hpp"	// from common_include folder
 
@@ -65,25 +67,63 @@ public:
 			//////////////////////////////////////////////////////////////
 		});
 		
-		/* commenting out until actually using encoder odom
 		// PUBLISHERS
-		odom_publisher = this->create_publisher<nav_msgs::msg::Odometry>("odom", 10);
-		encoderTimer = this->create_wall_timer(1s, 
-			[this]()
-			{
-				// TBH odom should be its own node - this should just publish
-				// encoder states
+		using namespace std::chrono_literals;
+		wt_publisher = this->create_publisher<control::msg::Wheeltravel>
+					("wheeltravel", 10); 
+					encoderTimer = this->create_wall_timer(250ms, 
+		[this]()	{
+			
+			static constexpr uint8_t TEMPBUF_SIZE { 64 };
+			static uint8_t serial_buffer[TEMPBUF_SIZE];
+			
+			static constexpr uint8_t ENCBUF_SIZE { 128 };
+			static uint8_t enc_buffer[ENCBUF_SIZE];
+			static uint8_t head { 0 };	// last parsed byte
+			static uint8_t tail { 0 };	// last read byte
 
-				// read odom message from due, publish to topic 
-				readPort();		
-				auto odomMsg = nav_msgs::msg::Odometry();
-				odomMsg.header = ;
-				odomMsg.child_frame_id = ;
-				odomMsg.pose = ;
-				odomMsg.twist = ;
-				this->odom_publisher->publish(odomMsg);
-			});
-		*/
+			static uint8_t cseq { 0 };					// current seqID
+			static uint8_t lseq { ENCBUF_SIZE-1 };	// last seqID processed
+
+			// read ardunio serial port data into temp buffer
+			static ssize_t bytes_read { 0 };
+			bytes_read = readSerial(serial_buffer, TEMPBUF_SIZE);
+
+			// read from temp buffer into ring buffer
+			for (ssize_t i = 0; i < bytes_read; ++i)	{
+				++tail &= (ENCBUF_SIZE-1);	// need to inc tail first
+				enc_buffer[tail] = serial_buffer[i];
+			}
+
+			// default wheeltravel to zeros
+			wt_mrad_.dt = 0; wt_mrad_.fr_mrad = 0.0; wt_mrad_.fl_mrad = 0.0;
+			wt_mrad_.br_mrad = 0.0; wt_mrad_.bl_mrad = 0.0;
+			// parse ring buffer, looking for message w/ higher sequence
+			for (uint8_t idx = head; idx != tail; ++idx &= (ENCBUF_SIZE-1))	{
+				static uint8_t* msgStart { nullptr };
+				msgStart = serialMSG::parsePacket(cseq, enc_buffer + idx);
+
+				static uint8_t seqdiff;
+				seqdiff = cseq - lseq;
+
+				if (msgStart != nullptr && seqdiff < 0x80)	{
+					// valid, not-yet-processed message found
+					wt_mrad_.deserialize(msgStart);
+					head = idx;		// if found msg, break loop & process
+					break;		// get out of loop so message can be processed
+				}
+			}
+			
+
+			// publish to topic 
+			auto wtMsg = control::msg::Wheeltravel();
+			wtMsg.dt = wt_mrad_.dt;
+			wtMsg.front_right = wt_mrad_.fr_mrad;
+			wtMsg.front_left = wt_mrad_.fl_mrad;
+			wtMsg.back_right = wt_mrad_.br_mrad;
+			wtMsg.back_left = wt_mrad_.bl_mrad;
+			this->wt_publisher->publish(wtMsg);
+		});
 	} // constructor
 	
 	~DueInterfaceNode()		{
@@ -96,15 +136,16 @@ private:
 	inline static constexpr char SERIAL_PORT[] = "/dev/ttyACM0";
 	int serialPort; 
 	serialMSG::WheelSpeed ws_mrad_s_;
-	serialMSG::WheelTravel wt_theta_;
+	serialMSG::WheelTravel wt_mrad_;
 	rclcpp::Subscription<control::msg::Wheelspeed>::SharedPtr ws_subscription;
+	rclcpp::Publisher<control::msg::Wheeltravel>::SharedPtr wt_publisher;
 	rclcpp::TimerBase::SharedPtr encoderTimer;
 
 	// helper functions
 	void openPort();
 	void closePort();
-	void readSerial(uint8_t* buf, size_t bufsize);
-	void writeSerial(uint8_t* msg, size_t msgsize);
+	ssize_t readSerial(uint8_t* buf, size_t bufsize);
+	ssize_t writeSerial(uint8_t* msg, size_t msgsize);
 };
 
 void DueInterfaceNode::closePort()	{
@@ -151,12 +192,12 @@ void DueInterfaceNode::openPort()	{
 	}
 }
 
-void DueInterfaceNode::readSerial(uint8_t* buf, size_t bufsize)	{
-	read(serialPort, reinterpret_cast<char*>(buf), bufsize);
+ssize_t DueInterfaceNode::readSerial(uint8_t* buf, size_t bufsize)	{
+	return read(serialPort, reinterpret_cast<char*>(buf), bufsize);
 }
 
-void DueInterfaceNode::writeSerial(uint8_t* msg, size_t msgsize)	{
-	write(serialPort, reinterpret_cast<const char*>(msg), msgsize); 
+ssize_t DueInterfaceNode::writeSerial(uint8_t* msg, size_t msgsize)	{
+	return write(serialPort, reinterpret_cast<const char*>(msg), msgsize); 
 }
 
 int main(int argc, char** argv)	{

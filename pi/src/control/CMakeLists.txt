@@ -37,6 +37,7 @@ target_include_directories(kb_handler_node
 )
 set(msg_files
 	"msg/Wheelspeed.msg"
+	"msg/Wheeltravel.msg"
 )
 rosidl_generate_interfaces(${PROJECT_NAME}
 	${msg_files}
