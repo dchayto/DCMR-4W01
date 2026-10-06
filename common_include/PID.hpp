@@ -12,6 +12,7 @@ public:
 	{} // </constructor>
 
 	double correct(double err, double dt)	{	
+		// note: expecting dt in s
 		e_itgl_ += err*dt;		// add error signal to summation
 		de_ = err - prev_err_;	// calculate differential error
 		prev_err_ = err;	

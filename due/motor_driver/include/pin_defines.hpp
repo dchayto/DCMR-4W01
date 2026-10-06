@@ -34,17 +34,17 @@ constexpr int BL_REV = 47;	// 2A, in1 (PURPLE)
 
 
 // encoder signals (receive)
-constexpr int FR_ENCA = 100;	// SET LATER
-constexpr int FR_ENCB = 100;	// SET LATER
+constexpr int FR_ENCA = 52;	// GREEN
+constexpr int FR_ENCB = 53;	// BLUE
 
-constexpr int FL_ENCA = 100;	// SET LATER
-constexpr int FL_ENCB = 100;	// SET LATER
+constexpr int FL_ENCA = 32;	// GREEN
+constexpr int FL_ENCB = 33;	// BLUE
 
-constexpr int BR_ENCA = 100;	// SET LATER
-constexpr int BR_ENCB = 100;	// SET LATER
+constexpr int BR_ENCA = 50;	// GREEN
+constexpr int BR_ENCB = 51;	// BLUE
 
-constexpr int BL_ENCA = 100;	// SET LATER
-constexpr int BL_ENCB = 100;	// SET LATER
+constexpr int BL_ENCA = 34;	// GREEN
+constexpr int BL_ENCB = 35;	// BLUE
 
 // ultrasonic sensor signals
 // SET LATER

@@ -55,10 +55,10 @@ static constexpr uint8_t FRAMING_SIZE = static_cast<uint8_t>(
 struct WheelSpeed	{
 	// input wheel speed data; default 0-init for safety
 	// could store as double[4], but this seems clearer usage-wise
-	double fr_mrad_s { 0.0 }; // front right wheel speed command
-	double fl_mrad_s { 0.0 }; // front left
-	double br_mrad_s { 0.0 }; // back right
-	double bl_mrad_s { 0.0 }; // back left
+	double fr_rad_s { 0.0 }; // front right wheel speed command
+	double fl_rad_s { 0.0 }; // front left
+	double br_rad_s { 0.0 }; // back right
+	double bl_rad_s { 0.0 }; // back left
 
 	// wire format of payload is 4x int32_t
 	static constexpr uint8_t PAYLOAD_SIZE = static_cast<uint8_t>(4 * sizeof(int32_t));
@@ -67,19 +67,19 @@ struct WheelSpeed	{
 
 	// helper prototypes
 	size_t serialize(uint8_t* &p);
-	void deserialize(uint8_t* p);	
+	bool deserialize(uint8_t* p);	
 
 }; // </struct WheelSpeed>
 
 struct WheelTravel	{
-	// delta wheel angular travel (del_theta), mrad
+	// delta wheel angular travel (del_theta), rad
 	// i know putting uint16 is bad for struct packing, but seemed more
 	// use-intuitive - shouldn't affect wire size anyways
 	uint16_t dt;			// dt since last message (ms)
-	double fr_mrad;
-	double fl_mrad;
-	double br_mrad;
-	double bl_mrad;
+	double fr_rad;
+	double fl_rad;
+	double br_rad;
+	double bl_rad;
 
 	// wire format of payload is 1 uint16_t + 4x int32_t
 	static constexpr uint8_t PAYLOAD_SIZE = static_cast<uint8_t>(
@@ -89,7 +89,7 @@ struct WheelTravel	{
 	
 	// helper prototypes
 	size_t serialize(uint8_t* &p);
-	void deserialize(uint8_t* p);	
+	bool deserialize(uint8_t* p);	
 }; // </struct WheelTravel>
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -101,21 +101,23 @@ size_t WheelSpeed::serialize(uint8_t* &p)	{
 	if (p == nullptr) 	return 0;
 
 	uint8_t* startPtr = p;	// remembering where started
-	pack_i32_bin(p, static_cast<int32_t>(fr_mrad_s));
-	pack_i32_bin(p, static_cast<int32_t>(fl_mrad_s));
-	pack_i32_bin(p, static_cast<int32_t>(br_mrad_s));
-	pack_i32_bin(p, static_cast<int32_t>(bl_mrad_s));
+	pack_i32_bin(p, static_cast<int32_t>(fr_rad_s*1000.0));
+	pack_i32_bin(p, static_cast<int32_t>(fl_rad_s*1000.0));
+	pack_i32_bin(p, static_cast<int32_t>(br_rad_s*1000.0));
+	pack_i32_bin(p, static_cast<int32_t>(bl_rad_s*1000.0));
 	return p - startPtr;		// return number of bytes written
 } // </serialize>
 
-void WheelSpeed::deserialize(uint8_t* p)	{
-	if (p == nullptr) 	return;
+bool WheelSpeed::deserialize(uint8_t* p)	{
+	if (p == nullptr) 	return false;
 
 	// note: ensure following order/datatype matches that in serialize function
-	fr_mrad_s = static_cast<double>(unpack_i32_bin(p));	
-	fl_mrad_s = static_cast<double>(unpack_i32_bin(p));	
-	br_mrad_s = static_cast<double>(unpack_i32_bin(p));	
-	bl_mrad_s = static_cast<double>(unpack_i32_bin(p));	
+	fr_rad_s = static_cast<double>(unpack_i32_bin(p))/1000.0;	
+	fl_rad_s = static_cast<double>(unpack_i32_bin(p))/1000.0;	
+	br_rad_s = static_cast<double>(unpack_i32_bin(p))/1000.0;	
+	bl_rad_s = static_cast<double>(unpack_i32_bin(p))/1000.0;	
+
+	return true;
 	
 //	return true;
 } // </deserialize>
@@ -128,25 +130,25 @@ size_t WheelTravel::serialize(uint8_t* &p)	{
 
 	uint8_t* startPtr = p;	// remembering where started
 	pack_u16_bin(p, dt);
-	pack_i32_bin(p, static_cast<int32_t>(fr_mrad));
-	pack_i32_bin(p, static_cast<int32_t>(fl_mrad));
-	pack_i32_bin(p, static_cast<int32_t>(br_mrad));
-	pack_i32_bin(p, static_cast<int32_t>(bl_mrad));
+	pack_i32_bin(p, static_cast<int32_t>(fr_rad)*1000);
+	pack_i32_bin(p, static_cast<int32_t>(fl_rad)*1000);
+	pack_i32_bin(p, static_cast<int32_t>(br_rad)*1000);
+	pack_i32_bin(p, static_cast<int32_t>(bl_rad)*1000);
 
 	return p - startPtr;		// return number of bytes written
 } // </serialize>
 
-void WheelTravel::deserialize(uint8_t* p)	{
-	if (p == nullptr)	return;
+bool WheelTravel::deserialize(uint8_t* p)	{
+	if (p == nullptr)	return false;
 
 	// note: ensure following order/datatype matches that in serialize function
 	dt = unpack_u16_bin(p);
-	fr_mrad = static_cast<double>(unpack_i32_bin(p));	
-	fl_mrad = static_cast<double>(unpack_i32_bin(p));	
-	br_mrad = static_cast<double>(unpack_i32_bin(p));	
-	bl_mrad = static_cast<double>(unpack_i32_bin(p));	
+	fr_rad = static_cast<double>(unpack_i32_bin(p))/1000.0;	
+	fl_rad = static_cast<double>(unpack_i32_bin(p))/1000.0;	
+	br_rad = static_cast<double>(unpack_i32_bin(p))/1000.0;	
+	bl_rad = static_cast<double>(unpack_i32_bin(p))/1000.0;	
 	
-//	return true;
+	return true;
 } // </deserialize>
 /////////////////////////// end wheel travel helpers //////////////////////////
 
@@ -220,9 +222,9 @@ int main()	{
 	WheelTravel wt { 2, 1.0, 1.0, 0.0, 1.0 };
 	std::cout << "WheelTravel message (type " << +wt.TYPE 
 		<< "): { dt: " << wt.dt
-		<< ", FR: " << wt.fr_mrad 
-		<< ", FL: " << wt.fl_mrad << " BR: " << wt.br_mrad
-		<< " BL: " << wt.bl_mrad << " }" << std::endl;
+		<< ", FR: " << wt.fr_rad 
+		<< ", FL: " << wt.fl_rad << " BR: " << wt.br_rad
+		<< " BL: " << wt.bl_rad << " }" << std::endl;
 	std::cout << "Framing size (computed separately): " << +FRAMING_SIZE << std::endl;
 	std::cout << "Payload size (computed manually): " << +wt.PAYLOAD_SIZE << std::endl;
 	std::cout << "Message size (payload + framing): " << +wt.MSG_SIZE << std::endl;
@@ -247,9 +249,9 @@ int main()	{
 		std::cout << "Payload parsed to be at idx " << +(payloadPtr - buffer) << std::endl;
 		wt.deserialize(payloadPtr);
 		std::cout << "Decoded message: { dt: " << wt.dt
-			<< ", FR: " << wt.fr_mrad 
-			<< ", FL: " << wt.fl_mrad << " BR: " << wt.br_mrad
-			<< " BL: " << wt.bl_mrad << " } " << std::endl;
+			<< ", FR: " << wt.fr_rad 
+			<< ", FL: " << wt.fl_rad << " BR: " << wt.br_rad
+			<< " BL: " << wt.bl_rad << " } " << std::endl;
 	}
 
 	return 0;

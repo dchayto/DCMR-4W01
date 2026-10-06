@@ -11,8 +11,10 @@
 
 // should really consider a more central location for this information
 inline constexpr double WHEEL_RADIUS	{ (60.0 / 2.0) / 1000.0 };		// [m]
-inline constexpr double WHEELBASE		{ 0.20 };	// [m]
-inline constexpr double TRACK_WIDTH		{ 0.20 };	// [m] - assumes CoM centred
+inline constexpr double WHEELBASE		{ 0.185 };	// [m]
+inline constexpr double TRACK_WIDTH		{ 0.215 };	// [m] - assumes CoM centred
 inline constexpr double PI				{ std::acos( -1.0 ) };
 inline constexpr double MEC_ANGLE		{ ::PI / 4.0 };	// radians, pos value
-inline constexpr double MAX_WHEELSPEED 	{ 20.0 * 1000.0 }; // mrad/s - update when have better idea
+inline constexpr double MAX_WHEELSPEED 	{ 17.0 }; // rad/s - bit above motor nl
+inline constexpr double MAX_LINSPEED	{ MAX_WHEELSPEED * WHEEL_RADIUS };
+inline constexpr double MAX_ANGSPEED	{ 2*MAX_LINSPEED / (WHEELBASE+TRACK_WIDTH) };

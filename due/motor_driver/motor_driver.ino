@@ -19,14 +19,14 @@
 #include "serialMSG.hpp"
 #include "PID.hpp"
 
-static serialMSG::WheelSpeed ws_mrad_s { };
-static serialMSG::WheelTravel wt_mrad { };
+static serialMSG::WheelSpeed ws_rad_s { };
+static serialMSG::WheelTravel wt_rad { };
 static uint8_t MOTOR_PWM[4] { 0, 0, 0, 0 }; // FR, FL, BR, BL
 static int8_t DDIR[4] { 1, 1, 1, 1 }; 	// 1 for fwd, 0 for bkwd
 
 #undef DRIVE_ENABLE		// for enabling/disabling PWM commands
 
-#undef MESSAGEIN_TESTING		// for testing message recieving
+#define MESSAGEIN_TESTING		// for testing message recieving
 #undef MESSAGEOUT_TESTING		// for testing message passing
 #undef MOTOR_TESTING			// for testing motor hardware
 
@@ -99,10 +99,10 @@ void loop() {
 	static unsigned long motorTimer { millis() };
 	static constexpr unsigned long MOTOR_TIMEOUT { 1500 }; // time out after 1.5s
 	if ((millis() - motorTimer) > MOTOR_TIMEOUT)	{
-		ws_mrad_s.fr_mrad_s = 0.0;
-		ws_mrad_s.fl_mrad_s = 0.0;
-		ws_mrad_s.br_mrad_s = 0.0;
-		ws_mrad_s.bl_mrad_s = 0.0;
+		ws_rad_s.fr_rad_s = 0.0;
+		ws_rad_s.fl_rad_s = 0.0;
+		ws_rad_s.br_rad_s = 0.0;
+		ws_rad_s.bl_rad_s = 0.0;
 		drive();
 	}
 
@@ -142,7 +142,7 @@ void loop() {
 			msgStart = parsePacket(ws_seq, input_buffer + searchidx);	
 
 			if (msgStart != nullptr)	{
-				ws_mrad_s.deserialize(msgStart);
+				ws_rad_s.deserialize(msgStart);
 				CMD_FLAG |= WHEELCMD_RECEIVED;	// note that command recieved
 				break;	// stop loop early; found start of message	
 			}
@@ -152,7 +152,7 @@ void loop() {
 
 
 	{	// scope definition for PIDs
-	static constexpr double p_wheel { 0.1 };
+	static constexpr double p_wheel { 10.0 };
 	static constexpr double i_wheel { 0.0 };
 	static constexpr double d_wheel { 0.0 };
 
@@ -162,16 +162,19 @@ void loop() {
 	static PID blPID { p_wheel, i_wheel, d_wheel };
 	
 	// PWM loop - just roughing out, not dealing with this yet
+	static unsigned long t0PID = millis();
+	static unsigned long dtPID;
+	dtPID = millis() - t0PID; 
 	if (0) {
 		static double e_fr { 0.0 };
 		static double e_fl { 0.0 };
 		static double e_br { 0.0 };
 		static double e_bl { 0.0 };
 
-		e_fr = frPID.correct(ENC_TO_MRAD(fr_enc_count), dtPID);
-		e_fl = flPID.correct(ENC_TO_MRAD(fl_enc_count), dtPID);
-		e_br = brPID.correct(ENC_TO_MRAD(br_enc_count), dtPID);
-		e_bl = blPID.correct(ENC_TO_MRAD(bl_enc_count), dtPID);
+		e_fr = frPID.correct(ENC_TO_RAD(fr_enc_count), dtPID / 1000.0);
+		e_fl = flPID.correct(ENC_TO_RAD(fl_enc_count), dtPID / 1000.0);
+		e_br = brPID.correct(ENC_TO_RAD(br_enc_count), dtPID / 1000.0);
+		e_bl = blPID.correct(ENC_TO_RAD(bl_enc_count), dtPID / 1000.0);
 
 		auto generatePWM = [](double error, uint8_t& mPWM, int8_t& dDir)	{
 			if (error >= 0)	{
@@ -181,8 +184,7 @@ void loop() {
 				error = -error;
 			}
 			mPWM = (error < 255.0 ? static_cast<uint8_t>(error) : 255);
-		}
-
+		};
 		generatePWM(e_fr, MOTOR_PWM[0], DDIR[0]);
 		generatePWM(e_fl, MOTOR_PWM[1], DDIR[1]);
 		generatePWM(e_br, MOTOR_PWM[2], DDIR[2]);
@@ -196,41 +198,50 @@ void loop() {
 		CMD_FLAG &= ~WHEELCMD_RECEIVED;	// unset flag
 		motorTimer = millis();			// reset timer
 		tail = head;					// only process msg once
-
-		// reset PIDs
-		frPID.reset();
-		flPID.reset();
-		brPID.reset();
-		blPID.reset();
+		frPID.reset(); flPID.reset(); brPID.reset(); blPID.reset(); // reset PID
 
 		#ifdef MESSAGEIN_TESTING
 		static String msgin;
-		msgin="RECEIVED: {FR: ";msgin+=ws_mrad_s.fr_mrad_s;msgin+="}  {FL: ";msgin+=ws_mrad_s.fl_mrad_s;msgin+="}  {BR: ";msgin+=ws_mrad_s.br_mrad_s;msgin+="}  {BL: ";msgin+=ws_mrad_s.bl_mrad_s;msgin+="}";
+		msgin="RECEIVED: {FR: ";msgin+=ws_rad_s.fr_rad_s;msgin+="}  {FL: ";msgin+=ws_rad_s.fl_rad_s;msgin+="}  {BR: ";msgin+=ws_rad_s.br_rad_s;msgin+="}  {BL: ";msgin+=ws_rad_s.bl_rad_s;msgin+="}";
 		Serial.println(msgin);
 		#endif
 	}
 	} // scope definition for PIDs
 
+#ifdef MESSAGEOUT_TESTING
+//TESTING ENCODER READINGS:
+Serial.print("\nFR: ");
+Serial.print(fr_enc_count);
+Serial.print("\tFL: ");
+Serial.print(fl_enc_count);
+Serial.print("\tBR: ");
+Serial.print(br_enc_count);
+Serial.print("BL: ");
+Serial.println(bl_enc_count);
+#endif
 
 	// read encoder data
-	static const int ENCODER_TIMER { 1000 }; 	// 1 sec freq for sending enc data
+	// NOTE: ensure encoder timer is larger than timer on wheeltravel
+	// publisher in due_hw_interface (might miss messages otherwise)
+	static const int ENCODER_TIMER { 10 }; 	// 100hz freq for sending enc data
 	static uint8_t encoder_buffer[32];
 	static uint8_t enc_seq { 0 };
 	static unsigned long timeOfLastSend { millis() };
 	// send encoder message
 	if ((millis() - timeOfLastSend) > ENCODER_TIMER)	{
-		wt_mrad.fr_mrad = ENC_TO_MRAD(fr_enc_count);
-		wt_mrad.fl_mrad = ENC_TO_MRAD(fl_enc_count);
-		wt_mrad.br_mrad = ENC_TO_MRAD(br_enc_count);
-		wt_mrad.bl_mrad = ENC_TO_MRAD(bl_enc_count);
+		wt_rad.fr_rad = ENC_TO_RAD(fr_enc_count);
+		wt_rad.fl_rad = ENC_TO_RAD(fl_enc_count);
+		wt_rad.br_rad = ENC_TO_RAD(br_enc_count);
+		wt_rad.bl_rad = ENC_TO_RAD(bl_enc_count);
+		wt_rad.dt = millis() - timeOfLastSend;
 
 		// serialize and write message
 		static size_t bytes_written;
-		bytes_written = serializePacket(enc_seq++, encoder_buffer, wt_mrad);
-		Serial.write(encoder_buffer, bytes_written);
+		bytes_written = serializePacket(enc_seq++, encoder_buffer, wt_rad);
+//		Serial.write(encoder_buffer, bytes_written);
 		
 		timeOfLastSend = millis();	// reset timer
-		resetEncoder();
+//		resetEncoder();
 	}
 
 } // </loop>

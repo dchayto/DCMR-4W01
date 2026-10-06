@@ -40,22 +40,22 @@ public:
 				("wheelspeed", 1,
 				[this](const control::msg::Wheelspeed& wsMsg)		{
 			static uint8_t write_buffer[64]; // assuming messages always well under 64b
-			// set ws_mrad_s_ based on received message, send to due
-			this->ws_mrad_s_.fr_mrad_s = wsMsg.front_right;
-			this->ws_mrad_s_.fl_mrad_s = wsMsg.front_left;
-			this->ws_mrad_s_.br_mrad_s = wsMsg.back_right;
-			this->ws_mrad_s_.bl_mrad_s = wsMsg.back_left;
+			// set ws_rad_s_ based on received message, send to due
+			this->ws_rad_s_.fr_rad_s = wsMsg.front_right;
+			this->ws_rad_s_.fl_rad_s = wsMsg.front_left;
+			this->ws_rad_s_.br_rad_s = wsMsg.back_right;
+			this->ws_rad_s_.bl_rad_s = wsMsg.back_left;
 
 			static size_t write_size = serialMSG::serializePacket(0, 
-				write_buffer, ws_mrad_s_);
+				write_buffer, ws_rad_s_);
 			writeSerial(write_buffer, write_size);
 
 			/////////////////////  TESTING MESSAGES //////////////////////
 			#ifdef SUBSCRIPTION_RECEIVE_TESTING
-			std::cout << "FRONT RIGHT:\t" << wsMsg.front_right << "mrad/s" << std::endl;
-			std::cout << "FRONT LEFT:\t" << wsMsg.front_left << "mrad/s" << std::endl;
-			std::cout << "BACK RIGHT:\t" << wsMsg.back_right << "mrad/s" << std::endl;
-			std::cout << "BACK LEFT:\t" << wsMsg.back_left << "mrad/s" << std::endl;
+			std::cout << "FRONT RIGHT:\t" << wsMsg.front_right << "rad/s" << std::endl;
+			std::cout << "FRONT LEFT:\t" << wsMsg.front_left << "rad/s" << std::endl;
+			std::cout << "BACK RIGHT:\t" << wsMsg.back_right << "rad/s" << std::endl;
+			std::cout << "BACK LEFT:\t" << wsMsg.back_left << "rad/s" << std::endl;
 			std::cout << std::flush;
 			#endif
 			#ifdef MC_MESSAGE_TESTING
@@ -71,7 +71,7 @@ public:
 		using namespace std::chrono_literals;
 		wt_publisher = this->create_publisher<control::msg::Wheeltravel>
 					("wheeltravel", 10); 
-					encoderTimer = this->create_wall_timer(250ms, 
+					encoderTimer = this->create_wall_timer(50ms, 
 		[this]()	{
 			
 			static constexpr uint8_t TEMPBUF_SIZE { 64 };
@@ -96,8 +96,8 @@ public:
 			}
 
 			// default wheeltravel to zeros
-			wt_mrad_.dt = 0; wt_mrad_.fr_mrad = 0.0; wt_mrad_.fl_mrad = 0.0;
-			wt_mrad_.br_mrad = 0.0; wt_mrad_.bl_mrad = 0.0;
+			wt_rad_.dt = 0; wt_rad_.fr_rad = 0.0; wt_rad_.fl_rad = 0.0;
+			wt_rad_.br_rad = 0.0; wt_rad_.bl_rad = 0.0;
 			// parse ring buffer, looking for message w/ higher sequence
 			for (uint8_t idx = head; idx != tail; ++idx &= (ENCBUF_SIZE-1))	{
 				static uint8_t* msgStart { nullptr };
@@ -108,7 +108,7 @@ public:
 
 				if (msgStart != nullptr && seqdiff < 0x80)	{
 					// valid, not-yet-processed message found
-					wt_mrad_.deserialize(msgStart);
+					wt_rad_.deserialize(msgStart);
 					head = idx;		// if found msg, break loop & process
 					break;		// get out of loop so message can be processed
 				}
@@ -117,11 +117,11 @@ public:
 
 			// publish to topic 
 			auto wtMsg = control::msg::Wheeltravel();
-			wtMsg.dt = wt_mrad_.dt;
-			wtMsg.front_right = wt_mrad_.fr_mrad;
-			wtMsg.front_left = wt_mrad_.fl_mrad;
-			wtMsg.back_right = wt_mrad_.br_mrad;
-			wtMsg.back_left = wt_mrad_.bl_mrad;
+			wtMsg.dt = wt_rad_.dt;
+			wtMsg.front_right = wt_rad_.fr_rad;
+			wtMsg.front_left = wt_rad_.fl_rad;
+			wtMsg.back_right = wt_rad_.br_rad;
+			wtMsg.back_left = wt_rad_.bl_rad;
 			this->wt_publisher->publish(wtMsg);
 		});
 	} // constructor
@@ -135,8 +135,8 @@ private:
 	// member variables
 	inline static constexpr char SERIAL_PORT[] = "/dev/ttyACM0";
 	int serialPort; 
-	serialMSG::WheelSpeed ws_mrad_s_;
-	serialMSG::WheelTravel wt_mrad_;
+	serialMSG::WheelSpeed ws_rad_s_;
+	serialMSG::WheelTravel wt_rad_;
 	rclcpp::Subscription<control::msg::Wheelspeed>::SharedPtr ws_subscription;
 	rclcpp::Publisher<control::msg::Wheeltravel>::SharedPtr wt_publisher;
 	rclcpp::TimerBase::SharedPtr encoderTimer;

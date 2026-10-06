@@ -16,7 +16,7 @@
 */
 
 #include <cstdint>
-#include <chrono>
+#include <chrono>		// for ms
 #include <cmath>		// for std::abs
 #include <limits>		// for std::numeric_limits<int8_t>::max()	
 #include <algorithm> 	// for std::max
@@ -35,7 +35,7 @@
 class MecWheelControllerNode : public rclcpp::Node	{
 public:
 	MecWheelControllerNode() : Node("mech_controller_node")		{
-		std::cout << belTwist.x << " " << belTwist.y << " " << belTwist.w << std::endl;
+//		std::cout << belTwist.x << " " << belTwist.y << " " << belTwist.w << std::endl;
 		// SUBSCRIBERS
 		input_twist_subscription = this->create_subscription<geometry_msgs::msg::Twist>
 			("input_cmd", 1,
@@ -44,6 +44,10 @@ public:
 				cmdTwist.x = icMsg.linear.x;
 				cmdTwist.y = icMsg.linear.y;
 				cmdTwist.w = icMsg.angular.z;
+
+				// should consider adding some kind of check for valid cmd...
+				// what happens if keyboard node shuts down? does controller
+				// pub get stuck on previous command?
 				
 				#ifdef MESSAGE_TESTING
 				RCLCPP_INFO(this->get_logger(), 
@@ -51,12 +55,18 @@ public:
 					cmdTwist.x, cmdTwist.y, cmdTwist.w);
 				#endif
 			});
+
 		measured_twist_subscription = this->create_subscription<geometry_msgs::msg::Twist>
 			("bel_twist", 1,
 			[this](const geometry_msgs::msg::Twist& btMsg)	{
+				// belief twist, from encoder odom + IMU readings (IO estimate)
+
 				belTwist.x = btMsg.linear.x;
 				belTwist.y = btMsg.linear.y;
 				belTwist.w = btMsg.angular.z;
+
+				// should consider what happens when sensors break down (or, 
+				// stops receiving valid measured twist for other reasons)
 
 				#ifdef MESSAGE_TESTING
 				RCLCPP_INFO(this->get_logger(), 
@@ -72,11 +82,17 @@ public:
 		ws_publisher = this->create_publisher<control::msg::Wheelspeed>("wheelspeed", 1);
 		wsTimer = this->create_wall_timer(50ms,
 			[this]()	{
+				// note: gain order is kp, ki, kd
+				// don't love this, consider cleaning up
+				static PID vxPID{1.0, 0.0, 0.0};
+				static PID vyPID{1.0, 0.0, 0.0};
+				static PID wzPID{1.0, 0.0, 0.0};
+
 				// if command changed, reset PID params	
 				static twist prevTwist {};
-				if (prevTwist.x == cmdTwist.x)	{ vxPID.reset(); }
-				if (prevTwist.y == cmdTwist.y)	{ vyPID.reset(); }
-				if (prevTwist.w == cmdTwist.w)	{ wzPID.reset(); }
+				if (prevTwist.x != cmdTwist.x)	{ vxPID.reset(); }
+				if (prevTwist.y != cmdTwist.y)	{ vyPID.reset(); }
+				if (prevTwist.w != cmdTwist.w)	{ wzPID.reset(); }
 				prevTwist = cmdTwist;
 
 				// get timestep	
@@ -103,21 +119,6 @@ public:
 				flUS = getFrontLeftWS();
 				brUS = getBackRightWS();
 				blUS = getBackLeftWS();
-
-				// scale wheelspeeds if command exceeding max speed 
-				// surely there's a better way to do this... oh well!
-				static double max_cmd {};
-				max_cmd = std::max({std::abs(frUS), std::abs(flUS),
-							std::abs(brUS), std::abs(blUS)});
-				if (max_cmd > MAX_WHEELSPEED)
-				{
-					static double wheelSF { 1.0 };
-					wheelSF = MAX_WHEELSPEED / max_cmd;
-					frUS *= wheelSF;
-					flUS *= wheelSF;
-					brUS *= wheelSF;
-					blUS *= wheelSF;
-				}	
 				
 				// publish wheelspeeds
 				auto wsMsg = control::msg::Wheelspeed();
@@ -136,17 +137,10 @@ public:
 private:
 	// member variables
 	// note: might not be practicable to use velocities directly; should
-	// consider just using relative values for body twists, and converting
-	// sensor twist value into relative values
-	twist cmdTwist {0.0, 0.0, 0.0}; // commanded twist [x, y, w]
-	twist belTwist {0.0, 0.0, 0.0}; // belief twist [x, y, w]
+	twist cmdTwist {0.0, 0.0, 0.0}; 	// commanded twist [x, y, w]
+	twist belTwist {0.0, 0.0, 0.0}; 	// current motion belief [x, y, w]
 	twist ctrlTwist {0.0, 0.0, 0.0};	// control signal twist [x, y, w]
 
-	// note: gain order is kp, ki, kd
-	// don't love this, consider cleaning up
-	PID vxPID{0.2, 0.0, 0.0};
-	PID vyPID{0.2, 0.0, 0.0};
-	PID wzPID{0.2, 0.0, 0.0};
 
 	rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr input_twist_subscription;
 	rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr measured_twist_subscription;
@@ -177,15 +171,15 @@ int main(int argc, char** argv)	{
 // IGNORING TRANSFORMS TO WORLD FRAME - going to handle any world:body 
 // transforms on world-side system (i.e., use robot pose to transform
 // desired global position/velocity command to appropriate body frame command
-// i.e., considering body frame to "be" global frame
+// i.e., considering body frame for this module)
 //
 // NOTE: considering:
 //			- driving direction as x 
-//			- vertical up as z
+//			- vertical up as z (sense for rotation, RHR)
 //			- left as y (by right hand naming convention)
-//			- theta(world->body) as 0rad
+//			- theta(world->body) as 0rad (i.e., not accounting for here)
 //			- thata(body->wheel) as 0rad (driving direction of wheel frame 
-// 			  parallel to driving direction of robot frame
+// 			  parallel to driving direction of robot frame)
 // 			- body frame to be centered on trackwidth and wheelbase
 //	considering these, frame relation matrix becomes:
 //		[c(0)		s(0)		x_wheel*s(0) - y_wheel*c(0)]
@@ -202,10 +196,10 @@ int main(int argc, char** argv)	{
 //  v_x, v_y, and w_z are constant by setup
 //
 //  solved on paper; works out to:
-// 		v_drive = (1/r)*v_x + (g)*v_y + (x_wheel*g - y_wheel*g)*w_z
+// 		u_drive = (1/r)*v_x + (g)*v_y + (x_wheel*g - y_wheel*g)*w_z
 //  where g = tan(MEC_ANGLE) / r
 //
-// 	NEED TO UPDATE THIS CODE TO USE STATIC TF2 PUBLISHER
+//  SHOULD PROBABLY UPDATE THIS CODE TO USE STATIC TF2 PUBLISHER
 double MecWheelControllerNode::getFrontRightWS()	{
 	// remember to use +MEC_ANGLE, +X_WHEEL, -Y_WHEEL
 	static const double G 			{ std::tan(+MEC_ANGLE) / WHEEL_RADIUS };
@@ -215,9 +209,7 @@ double MecWheelControllerNode::getFrontRightWS()	{
 	// static const double G_Y 		{ G };
 	static const double G_W			{ X_WHEEL*G - Y_WHEEL*G };
 
-	static double v_drive;
-	v_drive = G_X * ctrlTwist.x + G * ctrlTwist.y + G_W * ctrlTwist.w;
-	return v_drive / WHEEL_RADIUS;
+	return G_X * ctrlTwist.x + G * ctrlTwist.y + G_W * ctrlTwist.w;
 }
 
 double MecWheelControllerNode::getFrontLeftWS()		{
@@ -229,9 +221,7 @@ double MecWheelControllerNode::getFrontLeftWS()		{
 	// static const double G_Y 		{ G };
 	static const double G_W			{ X_WHEEL*G - Y_WHEEL*G };
 
-	static double v_drive;
-	v_drive = G_X * ctrlTwist.x + G * ctrlTwist.y + G_W * ctrlTwist.w;
-	return v_drive / WHEEL_RADIUS;
+	return G_X * ctrlTwist.x + G * ctrlTwist.y + G_W * ctrlTwist.w;
 }
 
 double MecWheelControllerNode::getBackRightWS()		{
@@ -243,9 +233,7 @@ double MecWheelControllerNode::getBackRightWS()		{
 	// static const double G_Y 		{ G };
 	static const double G_W			{ X_WHEEL*G - Y_WHEEL*G };
 
-	static double v_drive;
-	v_drive = G_X * ctrlTwist.x + G * ctrlTwist.y + G_W * ctrlTwist.w;
-	return v_drive / WHEEL_RADIUS;
+	return G_X * ctrlTwist.x + G * ctrlTwist.y + G_W * ctrlTwist.w;
 }
 
 double MecWheelControllerNode::getBackLeftWS()		{
@@ -257,8 +245,6 @@ double MecWheelControllerNode::getBackLeftWS()		{
 	// static const double G_Y 		{ G };
 	static const double G_W			{ X_WHEEL*G - Y_WHEEL*G };
 
-	static double v_drive;
-	v_drive = G_X * ctrlTwist.x + G * ctrlTwist.y + G_W * ctrlTwist.w;
-	return v_drive / WHEEL_RADIUS;
+	return G_X * ctrlTwist.x + G * ctrlTwist.y + G_W * ctrlTwist.w;
 }
 

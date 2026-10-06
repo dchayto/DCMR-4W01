@@ -69,9 +69,9 @@ namespace ScreenHandler	{
 "\n       ^                                        QUIT: ~          " // write string for instructions
 "\n       w                                                         "
 "\n     q   e        <---      --->                                 "
-"\n  < a  x  d >       , ?    / .                                   "
+"\n  < a  s  d >       , ?    / .                                   "
 "\n     z   c          _/      _               { [0  127] }         "
-"\n       s                                   -- - GAIN + ++        "
+"\n       x                                   -- - GAIN + ++        "
 "\n       v                                        /   " // shorter to allow gain on same line
 		};
 		
@@ -82,11 +82,11 @@ namespace ScreenHandler	{
 		std::replace(scr.begin(), scr.end(), 'q', FWD_LFT);
 		std::replace(scr.begin(), scr.end(), 'e', FWD_RHT);
 		std::replace(scr.begin(), scr.end(), 'a', LFT);
-		std::replace(scr.begin(), scr.end(), 'x', STP);
+		std::replace(scr.begin(), scr.end(), 's', STP);
 		std::replace(scr.begin(), scr.end(), 'd', RHT);
 		std::replace(scr.begin(), scr.end(), 'z', REV_LFT);
 		std::replace(scr.begin(), scr.end(), 'c', REV_RHT);
-		std::replace(scr.begin(), scr.end(), 's', REV);
+		std::replace(scr.begin(), scr.end(), 'x', REV);
 		
 		std::replace(scr.begin(), scr.end(), ',', TRN_LFT);
 		std::replace(scr.begin(), scr.end(), '.', TRN_RHT);
