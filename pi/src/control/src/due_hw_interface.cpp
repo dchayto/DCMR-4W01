@@ -49,7 +49,8 @@ public:
 			// FOR SOME REASON, MESSAGES AREN'T SERIALIZING PROPERLY
 			// first message will write fine, but second message doesn't write
 			// over first message... need to investigate
-			static size_t write_size = serialMSG::serializePacket(0, 
+			static size_t write_size;
+			write_size = serialMSG::serializePacket(0, 
 				write_buffer, ws_rad_s_);
 			writeSerial(write_buffer, write_size);
 
