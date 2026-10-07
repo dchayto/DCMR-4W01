@@ -69,9 +69,9 @@ namespace ScreenHandler	{
 "\n       ^                                        QUIT: ~          " // write string for instructions
 "\n       w                                                         "
 "\n     q   e        <---      --->                                 "
-"\n  < a  s  d >       , ?    / .                                   "
+"\n  < a  x  d >       , ?    / .                                   "
 "\n     z   c          _/      _               { [0  127] }         "
-"\n       x                                   -- - GAIN + ++        "
+"\n       s                                   -- - GAIN + ++        "
 "\n       v                                        /   " // shorter to allow gain on same line
 		};
 		

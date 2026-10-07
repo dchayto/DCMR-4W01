@@ -34,7 +34,7 @@
 
 class MecWheelControllerNode : public rclcpp::Node	{
 public:
-	MecWheelControllerNode() : Node("mech_controller_node")		{
+	MecWheelControllerNode() : Node("mec_controller_node")		{
 //		std::cout << belTwist.x << " " << belTwist.y << " " << belTwist.w << std::endl;
 		// SUBSCRIBERS
 		input_twist_subscription = this->create_subscription<geometry_msgs::msg::Twist>

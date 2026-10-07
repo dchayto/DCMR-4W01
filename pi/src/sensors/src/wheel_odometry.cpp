@@ -11,7 +11,12 @@
 */
 
 #include "rclcpp/rclcpp.hpp"
-#include "nav_msgs/msg/odometry.hpp"
+#include "geometry_msgs/msg/TwistWithCovarianceStamped.hpp"
+#include "geometry_msgs/msg/quaternion.hpp"
+#include "control/msg/wheeltravel.hpp"
+
+#include "robot_params.hpp"
+//#include <cmath>	// redundant (already in robot_params)
 
 
 class WheelOdomNode : public rclcpp::Node
@@ -21,23 +26,38 @@ public:
 	 : Node("wheel_odom_node")
 	{
 		// SUBSCRIBERS	
-		// node should subscribe to due_hw_interface to receive encoder message
+		wt_subscriber = this->create_subscription<control::msg::WheelTravel>
+					("wheeltravel", 1, 
+		[this](const control::msg::WheelTravel& wtMsg)	{
+			// position deltas
+			x_ = getPositionX(wtMsg);
+			y_ = getPositionX(wtMsg);
+			yaw_ = getYaw(wtMsg);
 
+			// PUBLISHING
+			// to start, probably just worry about getting twist publishing since
+			// that's what matters for C-L control - pose can wait for plan/map
+			odom_publisher = this->create_publisher<geometry_msgs::msg::TwistWithCovarianceStamped>("odom_twist", 1);
+			auto odomMsg = geometry_msgs::msg::TwistWithCovarianceStamped();
+			odomMsg.header.stamp = this.get_clock()->now;
+			odomMsg.header.frame_id = "odom_twist";
 
-		// PUBLISHERS
-		// to start, probably just worry about getting twist publishing since
-		// that's what matters for C-L control - pose can wait for plan/map
-		odom_publisher = this->create_publisher<nav_msgs::msg::Odometry>("odom", 10);
-		encoderTimer = this->create_wall_timer(1s, 
-			[this]()
-			{
-				auto odomMsg = nav_msgs::msg::Odometry();
-				odomMsg.header = ;
-				odomMsg.child_frame_id = ;
-				odomMsg.pose = ;
-				odomMsg.twist = ;
-				this->odom_publisher->publish(odomMsg);
-			};)
+			// SET COVARIANCE MATRIX LATER
+			// odomMsg.twist.covariance = { };
+
+			// don't care about these values - zeroing off
+			odomMsg.twist.twist.linear.z = 0.0;
+			odomMsg.twist.twist.angular.x = 0.0;
+			odomMsg.twist.twist.angular.y = 0.0;
+
+			// calculate params of interest (fwd kinematics)
+			odomMsg.twist.twist.linear.x = x_ / dt;
+			odomMsg.twist.twist.linear.y = y_ / dt;
+			odomMsg.twist.twist.angular.z = yaw_ / dt;
+
+			// publish odom message, to be consumed by robot_localization
+			this->odom_publisher->publish(odomMsg);
+		};)
 
 
 	} // constructor
@@ -45,12 +65,41 @@ public:
 private:
 	// member variables
 	rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_publisher;
+	rclcpp::Subscription<control::msg::Wheeltravel>::SharedPtr wt_subscriber;
 
+	// body position deltas
+	double x_;
+	double y_;
+	double yaw_;
 
-	// helper functions
-
+	// helper function prototypes
+	double getPositionX(const control::msg::Wheeltravel &wt);
+	double getPositionY(const control::msg::Wheeltravel &wt);
+	double getYaw(const control::msg::Wheeltravel &wt);
 }
 
+
+inline double WheelOdomNode::getPositionX(const control::msg::Wheeltravel &wt)	{
+	return WHEEL_RADIUS * (wt.fr_rad + wt.fl_rad + wt.br_rad + wt.bl_rad) / 4.0;
+}
+
+inline double WheelOdomNode::getPositionY(const control::msg::Wheeltravel &wt)	{
+	return WHEEL_RADIUS * (wt.fl_rad + wt.br_rad - wt.fr_rad - wt.bl_rad) / 4.0;
+}
+
+inline double WheelOdomNode::getYaw(const control::msg::Wheeltravel &wt)		{
+	return WHEEL_RADIUS * (wt.fr_rad + wt.br_rad - wt.fl_rad - wt.bl_rad) / 
+		(2.0 * (TRACK_WIDTH + WHEELBASE));
+}
+
+geometry_msgs::msg::Quaternion yawToQuaternion(double yaw)	{
+	geometry_msgs::msg::Quaternion q;
+	q.x = 0.0;
+	q.y = 0.0;
+	q.z = std::sin(yaw / 2.0);
+	q.w = std::cos(yaw / 2.0);
+	return q;
+}
 
 int main(int argc, char** argv)	{
 	rclcpp::init(argc, argv)

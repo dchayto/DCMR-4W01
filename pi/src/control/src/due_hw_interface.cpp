@@ -80,10 +80,10 @@ public:
 		// PUBLISHERS
 		using namespace std::chrono_literals;
 		wt_publisher = this->create_publisher<control::msg::Wheeltravel>
-					("wheeltravel", 10); 
-					encoderTimer = this->create_wall_timer(50ms, 
+					("wheeltravel", 1); 
+					encoderTimer = this->create_wall_timer(10ms, 
 		[this]()	{
-			
+			static bool message_received { false };	
 			static constexpr uint8_t TEMPBUF_SIZE { 64 };
 			static uint8_t serial_buffer[TEMPBUF_SIZE];
 			
@@ -95,6 +95,8 @@ public:
 			static uint8_t cseq { 0 };					// current seqID
 			static uint8_t lseq { ENCBUF_SIZE-1 };	// last seqID processed
 
+			auto wtMsg = control::msg::Wheeltravel();
+
 			// read ardunio serial port data into temp buffer
 			static ssize_t bytes_read { 0 };
 			bytes_read = readSerial(serial_buffer, TEMPBUF_SIZE);
@@ -105,9 +107,6 @@ public:
 				enc_buffer[tail] = serial_buffer[i];
 			}
 
-			// default wheeltravel to zeros
-			wt_rad_.dt = 0; wt_rad_.fr_rad = 0.0; wt_rad_.fl_rad = 0.0;
-			wt_rad_.br_rad = 0.0; wt_rad_.bl_rad = 0.0;
 			// parse ring buffer, looking for message w/ higher sequence
 			for (uint8_t idx = head; idx != tail; ++idx &= (ENCBUF_SIZE-1))	{
 
@@ -118,29 +117,28 @@ public:
 				}
 
 				static uint8_t* msgStart { nullptr };
-				msgStart = serialMSG::parsePacket(cseq, enc_buffer + idx);
+				msgStart = serialMSG::parsePacket(cseq, serial_buffer);
 
 				static uint8_t seqdiff;
 				seqdiff = cseq - lseq;
 
 				if (msgStart != nullptr && seqdiff < 0x80)	{
-					// valid, not-yet-processed message found; copy into temp buf
-
 					wt_rad_.deserialize(msgStart);
 					head = idx;		// if found msg, break loop & process
-					break;		// get out of loop so message can be processed
+					message_received = true;
+					wtMsg.dt += wt_rad_.dt;
+					wtMsg.front_right += wt_rad_.fr_rad;
+					wtMsg.front_left += wt_rad_.fl_rad;
+					wtMsg.back_right += wt_rad_.br_rad;
+					wtMsg.back_left += wt_rad_.bl_rad;
 				}
 			}
-			
-
-			// publish to topic 
-			auto wtMsg = control::msg::Wheeltravel();
-			wtMsg.dt = wt_rad_.dt;
-			wtMsg.front_right = wt_rad_.fr_rad;
-			wtMsg.front_left = wt_rad_.fl_rad;
-			wtMsg.back_right = wt_rad_.br_rad;
-			wtMsg.back_left = wt_rad_.bl_rad;
-			this->wt_publisher->publish(wtMsg);
+		
+			if (message_received)	{	
+				// publish to topic if found valid message
+				this->wt_publisher->publish(wtMsg);
+				message_received = false;
+			}
 		});
 	} // constructor
 	
