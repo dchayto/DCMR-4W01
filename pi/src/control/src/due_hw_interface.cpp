@@ -41,11 +41,14 @@ public:
 				[this](const control::msg::Wheelspeed& wsMsg)		{
 			static uint8_t write_buffer[64]; // assuming messages always well under 64b
 			// set ws_rad_s_ based on received message, send to due
-			this->ws_rad_s_.fr_rad_s = wsMsg.front_right;
-			this->ws_rad_s_.fl_rad_s = wsMsg.front_left;
-			this->ws_rad_s_.br_rad_s = wsMsg.back_right;
-			this->ws_rad_s_.bl_rad_s = wsMsg.back_left;
+			ws_rad_s_.fr_rad_s = wsMsg.front_right;
+			ws_rad_s_.fl_rad_s = wsMsg.front_left;
+			ws_rad_s_.br_rad_s = wsMsg.back_right;
+			ws_rad_s_.bl_rad_s = wsMsg.back_left;
 
+			// FOR SOME REASON, MESSAGES AREN'T SERIALIZING PROPERLY
+			// first message will write fine, but second message doesn't write
+			// over first message... need to investigate
 			static size_t write_size = serialMSG::serializePacket(0, 
 				write_buffer, ws_rad_s_);
 			writeSerial(write_buffer, write_size);
@@ -61,7 +64,13 @@ public:
 			#ifdef MC_MESSAGE_TESTING
 			std::cout << "Attempting to write wheelspeed message (" 
 					<< write_size << "b):" << std::endl;
-			std::cout.write(reinterpret_cast<const char*>(write_buffer), write_size);
+			std::cout << "FRONT RIGHT:\t" << ws_rad_s_.fr_rad_s << "rad/s" << std::endl;
+			std::cout << "FRONT LEFT:\t" << ws_rad_s_.fl_rad_s << "rad/s" << std::endl;
+			std::cout << "BACK RIGHT:\t" << ws_rad_s_.br_rad_s << "rad/s" << std::endl;
+			std::cout << "BACK LEFT:\t" << ws_rad_s_.bl_rad_s << "rad/s" << std::endl;
+			//std::cout.write(static_cast<int>(write_buffer), write_size);
+			for (size_t i = 0; i < write_size; ++i)	std::cout 
+				<< static_cast<int>(write_buffer[i]) << " ";
 			std::cout << std::endl << std::flush;
 			#endif
 			//////////////////////////////////////////////////////////////
@@ -100,6 +109,13 @@ public:
 			wt_rad_.br_rad = 0.0; wt_rad_.bl_rad = 0.0;
 			// parse ring buffer, looking for message w/ higher sequence
 			for (uint8_t idx = head; idx != tail; ++idx &= (ENCBUF_SIZE-1))	{
+
+				// there's probably a more efficient way of doing this...
+				// but can't be at wrapover when going to serialMSG
+				for (size_t i = 0; i < serialMSG::WheelTravel::MSG_SIZE; ++i)	{
+					serial_buffer[i] = enc_buffer[(idx + i) & (ENCBUF_SIZE - 1)];
+				}
+
 				static uint8_t* msgStart { nullptr };
 				msgStart = serialMSG::parsePacket(cseq, enc_buffer + idx);
 
@@ -107,7 +123,8 @@ public:
 				seqdiff = cseq - lseq;
 
 				if (msgStart != nullptr && seqdiff < 0x80)	{
-					// valid, not-yet-processed message found
+					// valid, not-yet-processed message found; copy into temp buf
+
 					wt_rad_.deserialize(msgStart);
 					head = idx;		// if found msg, break loop & process
 					break;		// get out of loop so message can be processed

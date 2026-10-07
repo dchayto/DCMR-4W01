@@ -134,12 +134,30 @@ void loop() {
 		static uint8_t ws_seq { 0 }; 	// don't care about seq
 
 		startpos = (head - WheelSpeed::MSG_SIZE) & (BUFFER_SIZE - 1);
+
 		// loop through until reaching tail (location of last parsed msg)
 		for (uint8_t searchidx = startpos; 
 								searchidx != ((tail - 1) & BUFFER_SIZE - 1); 
 											--searchidx &= BUFFER_SIZE - 1)	{
+
+	Serial.println("BUFFER CONTENTS:");
+	for (uint8_t i = 0; i < BUFFER_SIZE; ++i)	{
+		Serial.print(input_buffer[i]);
+		Serial.print(" ");
+	}
+	Serial.println(" ");
+
+
+			// copy message into message buffer
+			// there's probably a better way to do this, but can't be at a
+			// wrapover when going to serialMSG functions, so storing in sep buf
+			static uint8_t message_buffer[32];
+			for (size_t i = 0; i < WheelSpeed::MSG_SIZE; ++i)	{
+				message_buffer[i] = input_buffer[(searchidx+i) & (BUFFER_SIZE - 1)];
+			}
+
 			static uint8_t* msgStart = nullptr;
-			msgStart = parsePacket(ws_seq, input_buffer + searchidx);	
+			msgStart = parsePacket(ws_seq, message_buffer);
 
 			if (msgStart != nullptr)	{
 				ws_rad_s.deserialize(msgStart);
@@ -193,6 +211,8 @@ void loop() {
 		drive();
 	}
 
+ws_rad_s.fr_rad_s = 0.0;
+
 	// if command to wheels received, process now
 	if (CMD_FLAG & WHEELCMD_RECEIVED)	{
 		CMD_FLAG &= ~WHEELCMD_RECEIVED;	// unset flag
@@ -201,9 +221,15 @@ void loop() {
 		frPID.reset(); flPID.reset(); brPID.reset(); blPID.reset(); // reset PID
 
 		#ifdef MESSAGEIN_TESTING
-		static String msgin;
-		msgin="RECEIVED: {FR: ";msgin+=ws_rad_s.fr_rad_s;msgin+="}  {FL: ";msgin+=ws_rad_s.fl_rad_s;msgin+="}  {BR: ";msgin+=ws_rad_s.br_rad_s;msgin+="}  {BL: ";msgin+=ws_rad_s.bl_rad_s;msgin+="}";
-		Serial.println(msgin);
+		Serial.print("RECEIVED: {FR: ");
+		Serial.print(ws_rad_s.fr_rad_s);
+		Serial.print("}  {FL: ");
+		Serial.print(ws_rad_s.fl_rad_s);
+		Serial.print("}  {BR: ");
+		Serial.print(ws_rad_s.br_rad_s);
+		Serial.print("}  {BL: ");
+		Serial.print(ws_rad_s.bl_rad_s);
+		Serial.println("}");
 		#endif
 	}
 	} // scope definition for PIDs
@@ -228,7 +254,8 @@ Serial.println(bl_enc_count);
 	static uint8_t enc_seq { 0 };
 	static unsigned long timeOfLastSend { millis() };
 	// send encoder message
-	if ((millis() - timeOfLastSend) > ENCODER_TIMER)	{
+	if (0)	{	// commenting out for now - DELETE LATER
+//	if ((millis() - timeOfLastSend) > ENCODER_TIMER)	{
 		wt_rad.fr_rad = ENC_TO_RAD(fr_enc_count);
 		wt_rad.fl_rad = ENC_TO_RAD(fl_enc_count);
 		wt_rad.br_rad = ENC_TO_RAD(br_enc_count);

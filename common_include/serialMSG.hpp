@@ -36,7 +36,7 @@ enum MSG_ID : uint8_t	{
 	MSG_WHEELTRAVEL
 };
 
-constexpr uint16_t MAGIC_NUMBER { 0xDCDC }; // for packet sync (56540 dec)
+constexpr uint16_t MAGIC_NUMBER { 0xDC26 }; // for packet sync
 static constexpr uint8_t FRAMING_SIZE = static_cast<uint8_t>(
 	sizeof(MAGIC_NUMBER) 	+ 
 	sizeof(MSG_ID) 			+
@@ -130,10 +130,10 @@ size_t WheelTravel::serialize(uint8_t* &p)	{
 
 	uint8_t* startPtr = p;	// remembering where started
 	pack_u16_bin(p, dt);
-	pack_i32_bin(p, static_cast<int32_t>(fr_rad)*1000);
-	pack_i32_bin(p, static_cast<int32_t>(fl_rad)*1000);
-	pack_i32_bin(p, static_cast<int32_t>(br_rad)*1000);
-	pack_i32_bin(p, static_cast<int32_t>(bl_rad)*1000);
+	pack_i32_bin(p, static_cast<int32_t>(fr_rad*1000));
+	pack_i32_bin(p, static_cast<int32_t>(fl_rad*1000));
+	pack_i32_bin(p, static_cast<int32_t>(br_rad*1000));
+	pack_i32_bin(p, static_cast<int32_t>(bl_rad*1000));
 
 	return p - startPtr;		// return number of bytes written
 } // </serialize>
@@ -147,7 +147,7 @@ bool WheelTravel::deserialize(uint8_t* p)	{
 	fl_rad = static_cast<double>(unpack_i32_bin(p))/1000.0;	
 	br_rad = static_cast<double>(unpack_i32_bin(p))/1000.0;	
 	bl_rad = static_cast<double>(unpack_i32_bin(p))/1000.0;	
-	
+
 	return true;
 } // </deserialize>
 /////////////////////////// end wheel travel helpers //////////////////////////
@@ -165,7 +165,7 @@ size_t serializePacket(uint8_t seq, uint8_t* const buf, T& payload)	{
 	pack_u16_bin(p, MAGIC_NUMBER);	
 	pack_u8_bin(p, payload.TYPE);
 	pack_u8_bin(p, seq);
-	payload.serialize(p); 	//	not writing anything to buffer... 
+	payload.serialize(p); 	
 
 	uint8_t crc = crc8(buf, p - buf);	// compute CRC
 	pack_u8_bin(p, crc);	
@@ -219,19 +219,46 @@ int main()	{
 	using namespace serialMSG;
 
 	// define example wheeltravel message, print basic info about message
-	WheelTravel wt { 2, 1.0, 1.0, 0.0, 1.0 };
-	std::cout << "WheelTravel message (type " << +wt.TYPE 
-		<< "): { dt: " << wt.dt
-		<< ", FR: " << wt.fr_rad 
-		<< ", FL: " << wt.fl_rad << " BR: " << wt.br_rad
-		<< " BL: " << wt.bl_rad << " }" << std::endl;
+	WheelSpeed ws { 1.0, 1.0, 0.0, 1.0 };
+	WheelSpeed ws2 { };
+	std::cout << "WheelTravel message (type " << +ws.TYPE 
+		<< "): { FR: " << ws.fr_rad_s 
+		<< ", FL: " << ws.fl_rad_s << " BR: " << ws.br_rad_s
+		<< " BL: " << ws.bl_rad_s << " }" << std::endl;
 	std::cout << "Framing size (computed separately): " << +FRAMING_SIZE << std::endl;
-	std::cout << "Payload size (computed manually): " << +wt.PAYLOAD_SIZE << std::endl;
-	std::cout << "Message size (payload + framing): " << +wt.MSG_SIZE << std::endl;
+	std::cout << "Payload size (computed manually): " << +ws.PAYLOAD_SIZE << std::endl;
+	std::cout << "Message size (payload + framing): " << +ws.MSG_SIZE << std::endl;
 	
-	// attempt to encode wheelspeed message
+	// attempt to encode ws message
 	uint8_t buffer [64];
-	size_t write_size = serializePacket(1, buffer, wt);	
+	size_t write_size = serializePacket(1, buffer, ws);	
+	std::cout << std::endl << "Bytes written: " << write_size 
+		<< std::endl << "Buffer contents:";
+	for (size_t i = 0; i < write_size; ++i)	{
+		std::cout << " " << +buffer[i];
+	}
+	std::cout << std::endl;
+
+	// attempt to decode ws message into ws2
+	uint8_t seq { 1 };
+	uint8_t* payloadPtr = parsePacket(seq, buffer); 
+	if (payloadPtr == nullptr)	{
+		std::cout << "Could not decode packet. An issue exists either with "
+			<< "packet encoding or with parser." << std::endl;
+	} else	{
+		std::cout << "Payload parsed to be at idx " << +(payloadPtr - buffer) << std::endl;
+		ws2.deserialize(payloadPtr);
+		std::cout << "Decoded message: { FR: " << ws2.fr_rad_s 
+			<< ", FL: " << ws2.fl_rad_s << " BR: " << ws2.br_rad_s
+			<< " BL: " << ws2.bl_rad_s << " } " << std::endl;
+	}
+
+	ws.fr_rad_s = 3.2;
+	ws.fl_rad_s = 3.2;
+	ws.br_rad_s = 3.2;
+	ws.bl_rad_s = 3.2;
+
+	write_size = serializePacket(1, buffer, ws);	
 	std::cout << std::endl << "Bytes written: " << write_size 
 		<< std::endl << "Buffer contents:";
 	for (size_t i = 0; i < write_size; ++i)	{
@@ -240,18 +267,17 @@ int main()	{
 	std::cout << std::endl;
 
 	// attempt to decode wheelspeed message
-	uint8_t seq { 1 };
-	uint8_t* payloadPtr = parsePacket(seq, buffer); 
+	payloadPtr = parsePacket(seq, buffer); 
 	if (payloadPtr == nullptr)	{
 		std::cout << "Could not decode packet. An issue exists either with "
 			<< "packet encoding or with parser." << std::endl;
 	} else	{
 		std::cout << "Payload parsed to be at idx " << +(payloadPtr - buffer) << std::endl;
-		wt.deserialize(payloadPtr);
-		std::cout << "Decoded message: { dt: " << wt.dt
-			<< ", FR: " << wt.fr_rad 
-			<< ", FL: " << wt.fl_rad << " BR: " << wt.br_rad
-			<< " BL: " << wt.bl_rad << " } " << std::endl;
+		ws2.deserialize(payloadPtr);
+		std::cout << "Decoded message: { " 
+			<< "FR: " << ws2.fr_rad_s 
+			<< ", FL: " << ws2.fl_rad_s << " BR: " << ws2.br_rad_s
+			<< " BL: " << ws2.bl_rad_s << " } " << std::endl;
 	}
 
 	return 0;
