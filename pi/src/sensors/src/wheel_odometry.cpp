@@ -19,12 +19,9 @@
 //#include <cmath>	// redundant (already in robot_params)
 
 
-class WheelOdomNode : public rclcpp::Node
-{
+class WheelOdomNode : public rclcpp::Node	{
 public:
-	WheelOdomNode()
-	 : Node("wheel_odom_node")
-	{
+	WheelOdomNode() : Node("wheel_odom_node")	{
 		// SUBSCRIBERS	
 		wt_subscriber = this->create_subscription<control::msg::WheelTravel>
 					("wheeltravel", 1, 
@@ -35,9 +32,9 @@ public:
 			yaw_ = getYaw(wtMsg);
 
 			// PUBLISHING
-			// to start, probably just worry about getting twist publishing since
-			// that's what matters for C-L control - pose can wait for plan/map
-			odom_publisher = this->create_publisher<geometry_msgs::msg::TwistWithCovarianceStamped>("odom_twist", 1);
+			odom_publisher = this->create_publisher
+						<geometry_msgs::msg::TwistWithCovarianceStamped>
+						("odom_twist", 1);
 			auto odomMsg = geometry_msgs::msg::TwistWithCovarianceStamped();
 			odomMsg.header.stamp = this.get_clock()->now;
 			odomMsg.header.frame_id = "odom_twist";
