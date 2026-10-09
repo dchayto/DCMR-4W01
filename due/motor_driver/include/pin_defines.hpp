@@ -11,11 +11,10 @@
 #define DUE_PIN DEFINES
 
 // motor PWM signals
-constexpr int FR_PWM = 2; 	// GPIO 2 (PWM)
-constexpr int FL_PWM = 3;	// GPIO 3 (PWM)
-constexpr int BR_PWM = 4;	// GPIO 4 (PWM)
-constexpr int BL_PWM = 7;	// GPIO 7 (PWM)
-// GPIOs 5 and 6 apparently have weird interactions w/ other timer functions
+constexpr int FR_PWM = 6; 	// GPIO 6 (PWM)	- orange on driver 1
+constexpr int FL_PWM = 7;	// GPIO 7 (PWM)	- yellow on driver 1
+constexpr int BR_PWM = 8;	// GPIO 8 (PWM)	- yellow on driver 2
+constexpr int BL_PWM = 9;	// GPIO 9 (PWM) - orange on driver 2
 
 // half-bridge controls (fwd/reverse)
 // NOTE: wired flipped left-right, since driving direction relative to wheel

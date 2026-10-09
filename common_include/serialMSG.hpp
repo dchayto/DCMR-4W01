@@ -188,7 +188,7 @@ uint8_t* parsePacket(uint8_t& seq, uint8_t* const packet)	{
 	
 	// read in rest of header 
 	uint8_t type = unpack_u8_bin(p);
-	seq = unpack_u8_bin(p);		// assign seq to return parameter
+	uint8_t temp_seq = unpack_u8_bin(p);		// assign seq to return parameter
 	uint8_t* payloadPtr = p;		// next read is first item in payload
 
 	switch(type)
@@ -207,7 +207,10 @@ uint8_t* parsePacket(uint8_t& seq, uint8_t* const packet)	{
 
 	// check if CRCs match
 	if (crc8(packet, p - packet) != unpack_u8_bin(p)) return nullptr;
-	else return payloadPtr;
+	else {
+		seq = temp_seq;
+		return payloadPtr;
+	}
 }
 /////////////////////////////// end packet parser /////////////////////////////
 

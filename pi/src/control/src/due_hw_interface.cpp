@@ -26,8 +26,9 @@
 #include "serialMSG.hpp"	// from common_include folder
 
 // outputs additional messages to help with debugging
-#define SUBSCRIPTION_RECEIVE_TESTING
+#undef SUBSCRIPTION_RECEIVE_TESTING
 #define MC_MESSAGE_TESTING
+#undef PUBLISHER_SEND_TESTING
 
 class DueInterfaceNode : public rclcpp::Node	
 {
@@ -81,34 +82,33 @@ public:
 		using namespace std::chrono_literals;
 		wt_publisher = this->create_publisher<control::msg::Wheeltravel>
 					("wheeltravel", 1); 
-					encoderTimer = this->create_wall_timer(10ms, 
+					encoderTimer = this->create_wall_timer(5ms, 
 		[this]()	{
-			static bool message_received { false };	
+			bool message_received { false };	
 			static constexpr uint8_t TEMPBUF_SIZE { 64 };
 			static uint8_t serial_buffer[TEMPBUF_SIZE];
 			
-			static constexpr uint8_t ENCBUF_SIZE { 128 };
+			static constexpr uint16_t ENCBUF_SIZE { 256 };
 			static uint8_t enc_buffer[ENCBUF_SIZE];
-			static uint8_t head { 0 };	// last parsed byte
-			static uint8_t tail { 0 };	// last read byte
+			static uint16_t head { 0 };	// last parsed byte
+			static uint16_t tail { 0 };	// last read byte
 
-			static uint8_t cseq { 0 };					// current seqID
-			static uint8_t lseq { ENCBUF_SIZE-1 };	// last seqID processed
+			static uint8_t cseq { 0 };			// current seqID
+			static uint8_t lseq { 255 };		// last seqID processed
 
 			auto wtMsg = control::msg::Wheeltravel();
 
-			// read ardunio serial port data into temp buffer
-			static ssize_t bytes_read { 0 };
-			bytes_read = readSerial(serial_buffer, TEMPBUF_SIZE);
+			// read arduino serial port data into temp buffer
+			ssize_t bytes_read = readSerial(serial_buffer, TEMPBUF_SIZE);
 
 			// read from temp buffer into ring buffer
 			for (ssize_t i = 0; i < bytes_read; ++i)	{
-				++tail &= (ENCBUF_SIZE-1);	// need to inc tail first
 				enc_buffer[tail] = serial_buffer[i];
+				++tail &= (ENCBUF_SIZE-1);	
 			}
 
 			// parse ring buffer, looking for message w/ higher sequence
-			for (uint8_t idx = head; idx != tail; ++idx &= (ENCBUF_SIZE-1))	{
+			for (uint16_t idx = head; idx != tail; ++idx &= (ENCBUF_SIZE-1))	{
 
 				// there's probably a more efficient way of doing this...
 				// but can't be at wrapover when going to serialMSG
@@ -116,15 +116,14 @@ public:
 					serial_buffer[i] = enc_buffer[(idx + i) & (ENCBUF_SIZE - 1)];
 				}
 
-				static uint8_t* msgStart { nullptr };
-				msgStart = serialMSG::parsePacket(cseq, serial_buffer);
+				uint8_t* msgStart = serialMSG::parsePacket(cseq, serial_buffer);
 
-				static uint8_t seqdiff;
-				seqdiff = cseq - lseq;
-
-				if (msgStart != nullptr && seqdiff < 0x80)	{
+				uint8_t seqdiff = cseq - lseq;
+				if (msgStart != nullptr && seqdiff < 0x40 && seqdiff > 0)	{
 					wt_rad_.deserialize(msgStart);
-					head = idx;		// if found msg, break loop & process
+					head = (idx + serialMSG::WheelTravel::MSG_SIZE) 
+														& (ENCBUF_SIZE - 1);
+					lseq = cseq;
 					message_received = true;
 					wtMsg.dt += wt_rad_.dt;
 					wtMsg.front_right += wt_rad_.fr_rad;
@@ -136,6 +135,13 @@ public:
 		
 			if (message_received)	{	
 				// publish to topic if found valid message
+				#ifdef PUBLISHER_SEND_TESTING
+				std::cout << "MESSAGE: " << static_cast<int>(cseq) 
+					<< "\tDT: " << wtMsg.dt << "\t{ " << wt_rad_.fr_rad 
+					<< ", " << wt_rad_.fl_rad << ", " << wt_rad_.br_rad 
+					<< ", " << wt_rad_.bl_rad << " }" << std::endl;
+				#endif
+
 				this->wt_publisher->publish(wtMsg);
 				message_received = false;
 			}

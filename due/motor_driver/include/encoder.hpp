@@ -12,27 +12,28 @@ volatile long br_enc_count;
 volatile long bl_enc_count;
 
 inline constexpr double ENC_TO_RAD(long encoder_count)	{
-	return (encoder_count / PULSES_PER_TURN) / TWO_PI;
+//	(encoder_count / PULSES_PER_TURN) * TWO_PI;	// clearer, but int div
+	return encoder_count * TWO_PI / PULSES_PER_TURN;
 }
 
 void frEncOnPulse()	{
 	// ccw positive direction
-	if (digitalRead(FR_ENCA) == HIGH)		++fr_enc_count;
+	if (digitalRead(FR_ENCA) != HIGH)		++fr_enc_count;
 	else									--fr_enc_count;
 }
 void flEncOnPulse()	{
 	// cw positive direction
-	if (digitalRead(FL_ENCA) != HIGH)		++fl_enc_count;
+	if (digitalRead(FL_ENCA) == HIGH)		++fl_enc_count;
 	else									--fl_enc_count;
 }
 void brEncOnPulse()	{
 	// ccw positive direction
-	if (digitalRead(BR_ENCA) == HIGH)		++br_enc_count;
+	if (digitalRead(BR_ENCA) != HIGH)		++br_enc_count;
 	else									--br_enc_count;
 }
 void blEncOnPulse()	{
 	// cw positive direction
-	if (digitalRead(BL_ENCA) != HIGH)		++bl_enc_count;
+	if (digitalRead(BL_ENCA) == HIGH)		++bl_enc_count;
 	else									--bl_enc_count;
 }
 
@@ -61,9 +62,6 @@ void initEncoders() {
 	pinMode(BL_ENCB, INPUT);
 	attachInterrupt(digitalPinToInterrupt(BL_ENCB), blEncOnPulse, RISING);
 
-	fr_enc_count = 0;
-	fl_enc_count = 0;
-	br_enc_count = 0;
-	bl_enc_count = 0;
+	resetEncoder();
 }
 

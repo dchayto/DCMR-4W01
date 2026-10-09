@@ -93,11 +93,6 @@ void KeyboardHandlerNode::onKBTimer()	{
 	static char ch;
 	if (!read(STDIN_FILENO, &ch, 1)) ch = ' '; // default blank if no read
 
-	// duplicate assignments, but clearer this way
-	kbTwist.linear.x = 0.0;
-	kbTwist.linear.y = 0.0;
-	kbTwist.angular.z = 0.0;
-
 	using namespace KeyboardConstants;	// kb mappings
 	using namespace InputConstants;		// ISR2
 	switch (ch)	{

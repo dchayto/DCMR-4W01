@@ -26,6 +26,15 @@ public:
 		wt_subscriber = this->create_subscription<control::msg::WheelTravel>
 					("wheeltravel", 1, 
 		[this](const control::msg::WheelTravel& wtMsg)	{
+			double dt = wtMsg * 1e-3;	// ms to s
+			
+			// outlier check
+			double maxTravel = MAX_WHEELSPEED * dt;
+			if (std::abs(wtMsg.fr_rad) > maxTravel)		return;
+			if (std::abs(wtMsg.fl_rad) > maxTravel)		return;
+			if (std::abs(wtMsg.br_rad) > maxTravel)		return;
+			if (std::abs(wtMsg.bl_rad) > maxTravel)		return;
+			
 			// position deltas
 			x_ = getPositionX(wtMsg);
 			y_ = getPositionX(wtMsg);
