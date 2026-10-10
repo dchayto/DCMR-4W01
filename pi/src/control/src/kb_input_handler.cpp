@@ -87,12 +87,29 @@ private:
 
 void KeyboardHandlerNode::onKBTimer()	{
 	auto kbTwist = geometry_msgs::msg::Twist(); 
+	
+	// adding hysteresis to first input only to account for keyboard hold-down
+	// delay - recommend turning this delay down/off when testing and on robot
+	static char ch { ' ' };
+	static char prev_ch { ' ' };
+	static unsigned int no_command_count { 0 };
+	//bool stale_cmd { false };
+	uint8_t no_command_threshold { 10 };	// timeout when no commands received
 
-	// check what keyboard input is
-	// translate kb input into command
-	static char ch;
-	if (!read(STDIN_FILENO, &ch, 1)) ch = ' '; // default blank if no read
+	if (read(STDIN_FILENO, &ch, 1))	{
+		no_command_count = 0;
+		prev_ch = ch;	
+	} else {
+		no_command_count++;
+	}
 
+	// flush input buffer so old commands don't build up over time
+	tcflush(STDIN_FILENO, TCIFLUSH);
+	
+	if (ch == prev_ch)	no_command_threshold = 2; // stale command - time out sooner
+	
+	if (no_command_count > no_command_threshold)	ch = ' '; // default blank 
+	
 	using namespace KeyboardConstants;	// kb mappings
 	using namespace InputConstants;		// ISR2
 	switch (ch)	{
@@ -146,8 +163,6 @@ void KeyboardHandlerNode::onKBTimer()	{
 
 	this->input_twist_publisher->publish(kbTwist);	 // publish command
 	
-	// flush input buffer so old commands don't build up over time
-	tcflush(STDIN_FILENO, TCIFLUSH);
 } // </onKBTimer>
 
 void KeyboardHandlerNode::configureRaw(struct termios rawtty)	{
