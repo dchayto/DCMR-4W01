@@ -23,7 +23,7 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "geometry_msgs/msg/twist.hpp"
-#include "control/msg/wheelspeed.hpp"
+#include "interface/msg/wheelspeed.hpp"
 
 #include "include/mec_wheel_controller.hpp" 	// non-member helpers/consts
 #include "PID.hpp"	// generic PID controller structure
@@ -79,7 +79,7 @@ public:
 
 		// PUBLISHERS
 		using namespace std::chrono_literals;
-		ws_publisher = this->create_publisher<control::msg::Wheelspeed>("wheelspeed", 1);
+		ws_publisher = this->create_publisher<interface::msg::Wheelspeed>("wheelspeed", 1);
 		wsTimer = this->create_wall_timer(50ms,
 			[this]()	{
 				// note: gain order is kp, ki, kd
@@ -121,7 +121,7 @@ public:
 				blUS = getBackLeftWS();
 				
 				// publish wheelspeeds
-				auto wsMsg = control::msg::Wheelspeed();
+				auto wsMsg = interface::msg::Wheelspeed();
 				wsMsg.front_right 	= frUS;
 				wsMsg.front_left 	= flUS;
 				wsMsg.back_right 	= brUS;
@@ -136,15 +136,13 @@ public:
 
 private:
 	// member variables
-	// note: might not be practicable to use velocities directly; should
 	twist cmdTwist {0.0, 0.0, 0.0}; 	// commanded twist [x, y, w]
 	twist belTwist {0.0, 0.0, 0.0}; 	// current motion belief [x, y, w]
 	twist ctrlTwist {0.0, 0.0, 0.0};	// control signal twist [x, y, w]
 
-
 	rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr input_twist_subscription;
 	rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr measured_twist_subscription;
-	rclcpp::Publisher<control::msg::Wheelspeed>::SharedPtr ws_publisher;
+	rclcpp::Publisher<interface::msg::Wheelspeed>::SharedPtr ws_publisher;
 	rclcpp::TimerBase::SharedPtr wsTimer;
 	rclcpp::Time prev;
 
@@ -219,7 +217,7 @@ double MecWheelControllerNode::getFrontLeftWS()		{
 	static const double Y_WHEEL 	{ +TRACK_WIDTH / 2.0 };
 	static const double G_X 		{ 1.0 / WHEEL_RADIUS };
 	// static const double G_Y 		{ G };
-	static const double G_W			{ X_WHEEL*G - Y_WHEEL*G };
+	static const double G_W			{ X_WHEEL*G + Y_WHEEL*G };
 
 	return G_X * ctrlTwist.x + G * ctrlTwist.y + G_W * ctrlTwist.w;
 }
@@ -231,7 +229,7 @@ double MecWheelControllerNode::getBackRightWS()		{
 	static const double Y_WHEEL 	{ -TRACK_WIDTH / 2.0 };
 	static const double G_X 		{ 1.0 / WHEEL_RADIUS };
 	// static const double G_Y 		{ G };
-	static const double G_W			{ X_WHEEL*G - Y_WHEEL*G };
+	static const double G_W			{ X_WHEEL*G + Y_WHEEL*G };
 
 	return G_X * ctrlTwist.x + G * ctrlTwist.y + G_W * ctrlTwist.w;
 }

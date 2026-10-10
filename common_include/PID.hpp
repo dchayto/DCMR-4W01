@@ -18,7 +18,7 @@ public:
 		prev_err_ = err;	
 
 		// adjust control signal
-		return err * (kp_ + ki_*e_itgl_ + kd_ * de_ / dt);
+		return err*kp_ + ki_*e_itgl_ + kd_ * de_ / dt;
 	}
 
 	void reset()	{

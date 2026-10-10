@@ -20,8 +20,8 @@
 #include <chrono>	// for ms
 
 #include "rclcpp/rclcpp.hpp"
-#include "control/msg/wheelspeed.hpp"
-#include "control/msg/wheeltravel.hpp"
+#include "interface/msg/wheelspeed.hpp"
+#include "interface/msg/wheeltravel.hpp"
 
 #include "serialMSG.hpp"	// from common_include folder
 
@@ -37,9 +37,9 @@ public:
 		openPort();
 
 		// SUBSCRIBERS
-		ws_subscription = this->create_subscription<control::msg::Wheelspeed>
+		ws_subscription = this->create_subscription<interface::msg::Wheelspeed>
 				("wheelspeed", 1,
-				[this](const control::msg::Wheelspeed& wsMsg)		{
+				[this](const interface::msg::Wheelspeed& wsMsg)		{
 			static uint8_t write_buffer[64]; // assuming messages always well under 64b
 			// set ws_rad_s_ based on received message, send to due
 			ws_rad_s_.fr_rad_s = wsMsg.front_right;
@@ -80,7 +80,7 @@ public:
 		
 		// PUBLISHERS
 		using namespace std::chrono_literals;
-		wt_publisher = this->create_publisher<control::msg::Wheeltravel>
+		wt_publisher = this->create_publisher<interface::msg::Wheeltravel>
 					("wheeltravel", 1); 
 					encoderTimer = this->create_wall_timer(5ms, 
 		[this]()	{
@@ -96,7 +96,7 @@ public:
 			static uint8_t cseq { 0 };			// current seqID
 			static uint8_t lseq { 255 };		// last seqID processed
 
-			auto wtMsg = control::msg::Wheeltravel();
+			auto wtMsg = interface::msg::Wheeltravel();
 
 			// read arduino serial port data into temp buffer
 			ssize_t bytes_read = readSerial(serial_buffer, TEMPBUF_SIZE);
@@ -159,8 +159,8 @@ private:
 	int serialPort; 
 	serialMSG::WheelSpeed ws_rad_s_;
 	serialMSG::WheelTravel wt_rad_;
-	rclcpp::Subscription<control::msg::Wheelspeed>::SharedPtr ws_subscription;
-	rclcpp::Publisher<control::msg::Wheeltravel>::SharedPtr wt_publisher;
+	rclcpp::Subscription<interface::msg::Wheelspeed>::SharedPtr ws_subscription;
+	rclcpp::Publisher<interface::msg::Wheeltravel>::SharedPtr wt_publisher;
 	rclcpp::TimerBase::SharedPtr encoderTimer;
 
 	// helper functions

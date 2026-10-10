@@ -174,8 +174,8 @@ void loop() {
 
 
 	{	// scope definition for PIDs
-	static constexpr double p_wheel { 20.0 };
-	static constexpr double i_wheel { 0.0 };
+	static constexpr double p_wheel { 50.0 };
+	static constexpr double i_wheel { 1.0 };
 	static constexpr double d_wheel { 0.0 };
 
 	static PID frPID { p_wheel, i_wheel, d_wheel };
@@ -226,11 +226,12 @@ void loop() {
 
 		// if new command receieved, reset PID controllers 
 		static WheelSpeed ws_prev { };
+		static constexpr double TH_CMD { 0.025 };	// threshold on what new cmd means
 		
-		if (ws_prev.fr_rad_s != ws_rad_s.fr_rad_s)	frPID.reset();	
-		if (ws_prev.fl_rad_s != ws_rad_s.fl_rad_s)	flPID.reset();	
-		if (ws_prev.br_rad_s != ws_rad_s.br_rad_s)	brPID.reset();	
-		if (ws_prev.bl_rad_s != ws_rad_s.bl_rad_s)	blPID.reset();	
+		if (abs(ws_prev.fr_rad_s - ws_rad_s.fr_rad_s) > TH_CMD)	frPID.reset();	
+		if (abs(ws_prev.fl_rad_s - ws_rad_s.fl_rad_s) > TH_CMD)	flPID.reset();	
+		if (abs(ws_prev.br_rad_s - ws_rad_s.br_rad_s) > TH_CMD)	brPID.reset();	
+		if (abs(ws_prev.bl_rad_s - ws_rad_s.bl_rad_s) > TH_CMD)	blPID.reset();	
 
 		ws_prev.fr_rad_s = ws_rad_s.fr_rad_s;
 		ws_prev.fl_rad_s = ws_rad_s.fl_rad_s;
