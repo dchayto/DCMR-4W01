@@ -86,6 +86,9 @@ private:
 
 
 void KeyboardHandlerNode::onKBTimer()	{
+	using namespace KeyboardConstants;	// kb mappings
+	using namespace InputConstants;		// ISR2
+
 	auto kbTwist = geometry_msgs::msg::Twist(); 
 	
 	// adding hysteresis to first input only to account for keyboard hold-down
@@ -105,13 +108,15 @@ void KeyboardHandlerNode::onKBTimer()	{
 
 	// flush input buffer so old commands don't build up over time
 	tcflush(STDIN_FILENO, TCIFLUSH);
-	
+
 	if (ch == prev_ch)	no_command_threshold = 2; // stale command - time out sooner
+
+	// don't want hysteresis on gain controls
+	if (ch == GAINUP || ch == GAINUP10 || ch == GAINDN || ch == GAINDN10)
+		no_command_threshold = 0;
 	
 	if (no_command_count > no_command_threshold)	ch = ' '; // default blank 
 	
-	using namespace KeyboardConstants;	// kb mappings
-	using namespace InputConstants;		// ISR2
 	switch (ch)	{
 		// basic movements:
 		case FWD:	 	kbTwist.linear.x =  gain*MAX_LINSPEED*0.01;		 break;
