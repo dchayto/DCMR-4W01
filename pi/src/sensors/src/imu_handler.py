@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 #								imu_handler.py							
 #	ros node for interfacing with onboard imu
 #
@@ -24,7 +26,7 @@
 #	numbering, not wiringpi or J8 header standard numbering
 #
 #
-#	stole a lot of this from chatGPT ngl, just tweaked as required	
+#	stole a lot of this from chatGPT ngl, just tweaking as required	
 
 
 import rclpy
@@ -39,7 +41,7 @@ from adafruit_extended_bus import ExtendedI2C as I2C
 
 class BNO085Node(Node):
     def __init__(self):
-        super().__init__('bno085_node')
+        super().__init__('imu_node')
         i2c = I2C(8)						# Software I2C on bus 8
         self.bno = BNO08X_I2C(i2c)
         report_interval = 10_000			# 100 Hz
@@ -62,7 +64,7 @@ class BNO085Node(Node):
         self.publisher = self.create_publisher(
             Imu,
             '/imu/data',
-            10
+            1
         )
 
         self.timer = self.create_timer(

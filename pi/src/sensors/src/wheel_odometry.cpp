@@ -18,7 +18,8 @@
 #include "robot_params.hpp"
 //#include <cmath>	// redundant (already in robot_params)
 
-#define MESSAGEOUT_TESTING
+#define WHEELSPEED_REPORT
+#undef MESSAGEOUT_TESTING
 
 class WheelOdomNode : public rclcpp::Node	{
 public:
@@ -31,10 +32,18 @@ public:
 			
 			// outlier check
 			double maxTravel = MAX_WHEELSPEED * dt;
-			if (std::abs(wtMsg.front_right) > maxTravel)		return;
+			if (std::abs(wtMsg.front_right) > maxTravel)	return;
 			if (std::abs(wtMsg.front_left) > maxTravel)		return;
 			if (std::abs(wtMsg.back_right) > maxTravel)		return;
 			if (std::abs(wtMsg.back_left) > maxTravel)		return;
+
+			#ifdef WHEELSPEED_REPORT
+			std::cout << std::endl 
+				<< "FRONT RIGHT:\t" << wtMsg.front_right / dt << std::endl
+				<< "FRONT LEFT: \t" << wtMsg.front_left / dt << std::endl
+				<< "BACK RIGHT: \t" << wtMsg.back_right / dt << std::endl
+				<< "BACK LEFT:  \t" << wtMsg.back_left / dt << std::endl;
+			#endif
 			
 			// position deltas
 			x_ = getPositionX(wtMsg);
@@ -61,6 +70,7 @@ public:
 			odomMsg.twist.twist.linear.x = x_ / dt;
 			odomMsg.twist.twist.linear.y = y_ / dt;
 			odomMsg.twist.twist.angular.z = yaw_ / dt;
+
 
 			#ifdef MESSAGEOUT_TESTING
 			std::cout << std::endl << "x: " << odomMsg.twist.twist.linear.x 

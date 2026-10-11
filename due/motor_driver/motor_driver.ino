@@ -174,18 +174,21 @@ void loop() {
 
 
 	{	// scope definition for PIDs
-	static constexpr double p_wheel { 50.0 };
-	static constexpr double i_wheel { 1.0 };
+	static constexpr double p_wheel { 30.0 };
+	static constexpr double i_wheel { 0.0050 };
 	static constexpr double d_wheel { 0.0 };
+	static constexpr double i_max	{ 500.0 };
 
-	static PID frPID { p_wheel, i_wheel, d_wheel };
-	static PID flPID { p_wheel, i_wheel, d_wheel };
-	static PID brPID { p_wheel, i_wheel, d_wheel };
-	static PID blPID { p_wheel, i_wheel, d_wheel };
+	// motors are pretty inconsistent... FL and BR seem to saturate earlier
+	// with P-gain - adjusting as required (looking to optimize for gain 70)
+	static PID frPID { p_wheel + 1.5, i_wheel - 0.0015, d_wheel, i_max + 050.0 };
+	static PID flPID { p_wheel - 1.0, i_wheel - 0.0000, d_wheel, i_max + 000.0 };
+	static PID brPID { p_wheel - 0.8, i_wheel - 0.0000, d_wheel, i_max + 000.0 };
+	static PID blPID { p_wheel + 1.5, i_wheel - 0.0025, d_wheel, i_max + 050.0 };
 	
 	// PID loop
 	static unsigned long t0PID = micros();
-	static constexpr unsigned long PID_TIMER { 2000 };	// 500 Hz
+	static constexpr unsigned long PID_TIMER { 1000 };	// 1000 Hz
 	unsigned long dtPID = micros() - t0PID; 
 	if (dtPID >= PID_TIMER) {
 		double dt_s = static_cast<double>(dtPID) * 1e-6;	// convert micros to s
@@ -226,7 +229,7 @@ void loop() {
 
 		// if new command receieved, reset PID controllers 
 		static WheelSpeed ws_prev { };
-		static constexpr double TH_CMD { 0.025 };	// threshold on what new cmd means
+		static constexpr double TH_CMD { 0.01 };	// threshold on what new cmd means
 		
 		if (abs(ws_prev.fr_rad_s - ws_rad_s.fr_rad_s) > TH_CMD)	frPID.reset();	
 		if (abs(ws_prev.fl_rad_s - ws_rad_s.fl_rad_s) > TH_CMD)	flPID.reset();	
