@@ -18,7 +18,7 @@
 #include "robot_params.hpp"
 //#include <cmath>	// redundant (already in robot_params)
 
-#define WHEELSPEED_REPORT
+#undef WHEELSPEED_REPORT
 #undef MESSAGEOUT_TESTING
 
 class WheelOdomNode : public rclcpp::Node	{
