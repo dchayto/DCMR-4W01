@@ -175,9 +175,9 @@ void loop() {
 
 	{	// scope definition for PIDs
 	static constexpr double p_wheel { 30.0 };
-	static constexpr double i_wheel { 0.0050 };
+	static constexpr double i_wheel { 0.0075 };
 	static constexpr double d_wheel { 0.0 };
-	static constexpr double i_max	{ 500.0 };
+	static constexpr double i_max	{ 1250.0 };
 
 	// motors are pretty inconsistent... FL and BR seem to saturate earlier
 	// with P-gain - adjusting as required (looking to optimize for gain 70)
