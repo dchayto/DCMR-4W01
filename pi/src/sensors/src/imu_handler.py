@@ -18,6 +18,8 @@
 #	pip install adafruit-circuitpython-bno08x
 #	pip install adafruit-extended-bus
 #
+#	need some rpi libraries as well:
+#	pip install RPi.GPIO
 #
 #	also need to add the following to /boot/firmware/config.txt and reboot:
 #	dtoverlay=i2c-gpio,i2c_gpio_sda=2,i2c_gpio_scl=3,bus=8
@@ -42,7 +44,7 @@ from adafruit_extended_bus import ExtendedI2C as I2C
 class BNO085Node(Node):
     def __init__(self):
         super().__init__('imu_node')
-        i2c = I2C(8)						# Software I2C on bus 8
+        i2c = I2C(1)						# hardware I2C on bus 1
         self.bno = BNO08X_I2C(i2c)
         report_interval = 10_000			# 100 Hz
 
@@ -76,6 +78,30 @@ class BNO085Node(Node):
         msg = Imu()
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.header.frame_id = 'imu_link'
+
+		# COVARIANCES:
+		# set somewhat arbitrarily, figure out more reasonable values later
+		msg.orientation_covariance = [
+		#	x		y		z
+			3e-3,	0.0,	0.0,	# x	
+			0.0,	0.0,	0.0,	# y	
+			0.0,	0.0,	0.0,	# z	
+		]	# magnetometer + onboard fusion
+
+		msg.angular_velocity_covariance = [
+		#	x		y		z
+			2e-4,	0.0,	0.0,	# x	
+			0.0,	2e-4,	0.0,	# y	
+			0.0,	0.0,	2e-4	# z	
+		]	# gyro + onboard fusion
+
+		msg.linear_acceleration_covariance = [
+		#	x		y		z
+			4e-2,	0.0,	0.0,	# x	
+			0.0,	4e-2,	0.0,	# y	
+			0.0,	0.0,	4e-2,	# z	
+		]	# accelerometer + onboard fusion
+
 
         # Orientation
         x, y, z, w = self.bno.quaternion

@@ -7,6 +7,9 @@
 	data will be published on wheel odometry topic, to be consumed by sensor
 	fusion node as part of estimating actual robot motion 
 
+	SHOULD CONSIDER ESTIMATING POSE AS WELL AT SOME POINT - not much extra work
+	here, just need to figure out how to handle drift + corrections
+
 	auth: @dchayto
 */
 
@@ -53,13 +56,21 @@ public:
 			// PUBLISHING
 			odom_publisher = this->create_publisher
 						<geometry_msgs::msg::TwistWithCovarianceStamped>
-						("odom_twist", 1);
+						("wheel_twist", 1);
 			auto odomMsg = geometry_msgs::msg::TwistWithCovarianceStamped();
 			odomMsg.header.stamp = this->get_clock()->now();
-			odomMsg.header.frame_id = "odom_twist";
+			odomMsg.header.frame_id = "odom";
 
-			// SET COVARIANCE MATRIX LATER
-			// odomMsg.twist.covariance = { };
+			// COVARIANCE MATRIX: x, y, z, rx, ry, rz
+			// set somewhat arbitrarily, figure out more reasonable values later
+			odomMsg.twist.covariance = {
+				1e-2,	0.0,	0.0,	0.0,	0.0,	0.0,
+				0.0,	2e-1,	0.0,	0.0,	0.0,	0.0,
+				0.0,	0.0,	1e3,	0.0,	0.0,	0.0,
+				0.0,	0.0,	0.0,	1e3,	0.0,	0.0,
+				0.0,	0.0,	0.0,	0.0,	1e3,	0.0,
+				0.0,	0.0,	0.0,	0.0,	0.0,	5e-2
+			};
 
 			// don't care about these values - zeroing off
 			odomMsg.twist.twist.linear.z = 0.0;

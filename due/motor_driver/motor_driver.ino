@@ -28,8 +28,8 @@ static int8_t DDIR[4] { 1, 1, 1, 1 }; 	// 1 for fwd, 0 for bkwd
 
 #define DRIVE_ENABLE		// for enabling/disabling PWM commands
 
-#define MESSAGEIN_TESTING		// for testing message recieving
-#define MESSAGEOUT_TESTING		// for testing message passing
+#undef MESSAGEIN_TESTING		// for testing message recieving
+#undef MESSAGEOUT_TESTING		// for testing message passing
 #undef MOTOR_TESTING			// for testing motor hardware
 
 inline void drive()	{
@@ -177,7 +177,7 @@ void loop() {
 	static constexpr double p_wheel { 30.0 };
 	static constexpr double i_wheel { 0.0075 };
 	static constexpr double d_wheel { 0.0 };
-	static constexpr double i_max	{ 1250.0 };
+	static constexpr double i_max	{ 1500.0 };
 
 	// motors are pretty inconsistent... FL and BR seem to saturate earlier
 	// with P-gain - adjusting as required (looking to optimize for gain 70)
