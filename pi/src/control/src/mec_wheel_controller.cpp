@@ -23,13 +23,15 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "geometry_msgs/msg/twist.hpp"
+#include "nav_msgs/msg/odometry.hpp"
 #include "interface/msg/wheelspeed.hpp"
 
 #include "include/mec_wheel_controller.hpp" 	// non-member helpers/consts
 #include "PID.hpp"	// generic PID controller structure
 #include "robot_params.hpp"		// for robot parameters
 
-#undef MESSAGE_TESTING			// enables ROS message writeouts
+#undef INP_MESSAGE_TESTING			// enables ROS message writeouts
+#define BEL_MESSAGE_TESTING			// enables ROS message writeouts
 #define CONTROLLER_IO_TESTING	// enables writeouts of controller I/O
 
 class MecWheelControllerNode : public rclcpp::Node	{
@@ -49,26 +51,26 @@ public:
 				// what happens if keyboard node shuts down? does controller
 				// pub get stuck on previous command?
 				
-				#ifdef MESSAGE_TESTING
+				#ifdef INP_MESSAGE_TESTING
 				RCLCPP_INFO(this->get_logger(), 
 					"Received cmd: {vx: %f | vy: %f | w: %f}",
 					cmdTwist.x, cmdTwist.y, cmdTwist.w);
 				#endif
 			});
 
-		measured_twist_subscription = this->create_subscription<geometry_msgs::msg::Twist>
-			("bel_twist", 1,
-			[this](const geometry_msgs::msg::Twist& btMsg)	{
+		measured_twist_subscription = this->create_subscription<nav_msgs::msg::Odometry>
+			("/odometry/filtered", 1,
+			[this](const nav_msgs::msg::Odometry& btMsg)	{
 				// belief twist, from encoder odom + IMU readings (IO estimate)
 
-				belTwist.x = btMsg.linear.x;
-				belTwist.y = btMsg.linear.y;
-				belTwist.w = btMsg.angular.z;
+				belTwist.x = btMsg.twist.twist.linear.x;
+				belTwist.y = btMsg.twist.twist.linear.y;
+				belTwist.w = btMsg.twist.twist.angular.z;
 
 				// should consider what happens when sensors break down (or, 
 				// stops receiving valid measured twist for other reasons)
 
-				#ifdef MESSAGE_TESTING
+				#ifdef BEL_MESSAGE_TESTING
 				RCLCPP_INFO(this->get_logger(), 
 					"Received bel: {vx: %f | vy: %f | w: %f}",
 					belTwist.x, belTwist.y, belTwist.w);
@@ -84,9 +86,9 @@ public:
 			[this]()	{
 				// note: gain order is kp, ki, kd
 				// don't love this, consider cleaning up
-				static PID vxPID{1.0, 0.0, 0.0};
-				static PID vyPID{1.0, 0.0, 0.0};
-				static PID wzPID{1.0, 0.0, 0.0};
+				static PID vxPID{1.0, 0.1, 0.0, 10};
+				static PID vyPID{0.5, 0.5, 0.0, 10};	// vy likes to slip
+				static PID wzPID{1.0, 0.1, 0.0, 10};
 
 				// if command changed, reset PID params	
 				static twist prevTwist {};
@@ -141,7 +143,7 @@ private:
 	twist ctrlTwist {0.0, 0.0, 0.0};	// control signal twist [x, y, w]
 
 	rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr input_twist_subscription;
-	rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr measured_twist_subscription;
+	rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr measured_twist_subscription;
 	rclcpp::Publisher<interface::msg::Wheelspeed>::SharedPtr ws_publisher;
 	rclcpp::TimerBase::SharedPtr wsTimer;
 	rclcpp::Time prev;

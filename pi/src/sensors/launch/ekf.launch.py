@@ -22,8 +22,8 @@ def generate_launch_description():
     return LaunchDescription([
         Node(
             package='robot_localization',
-            executable='odom_ekf_node',
-            name='robot_odom_ekf_node',
+            executable='ekf_node',
+            name='robot_odom_ekf',
             output='screen',
             parameters=[ekf_config],
         ),

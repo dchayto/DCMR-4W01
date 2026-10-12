@@ -11,6 +11,7 @@ find_package(rclcpp REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 find_package(interface REQUIRED)
 
 add_executable(due_interface_node src/due_hw_interface.cpp)
@@ -28,6 +29,7 @@ target_link_libraries(kb_handler_node PUBLIC
 add_executable(mecanum_controller_node src/mec_wheel_controller.cpp)
 target_link_libraries(mecanum_controller_node PUBLIC
 	${geometry_msgs_TARGETS}
+	${nav_msgs_TARGETS}
 	${interface_TARGETS}
 	rclcpp::rclcpp
 )

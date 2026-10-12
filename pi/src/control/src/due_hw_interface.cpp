@@ -27,7 +27,7 @@
 
 // outputs additional messages to help with debugging
 #undef SUBSCRIPTION_RECEIVE_TESTING
-#define MC_MESSAGE_TESTING
+#undef MC_MESSAGE_TESTING
 #undef PUBLISHER_SEND_TESTING
 
 class DueInterfaceNode : public rclcpp::Node	
