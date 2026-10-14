@@ -6,13 +6,13 @@ if [ "$#" -eq 0 ]; then
     colcon build \
         --parallel-workers 1 \
 		--event-handlers status- \
-		-- executor sequential \
+		--executor sequential \
         --symlink-install
 else
 	colcon build \
 		--parallel-workers 1 \
 		--event-handlers status- \
-		-- executor sequential \
+		--executor sequential \
         --symlink-install
 		--packages-select "$@"
 fi

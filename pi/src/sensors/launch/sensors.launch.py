@@ -6,6 +6,7 @@
 
 from launch import LaunchDescription
 from launch_ros.actions import Node
+from launch.actions import ExecuteProcess
 
 def generate_launch_description():
     return LaunchDescription([
@@ -24,12 +25,13 @@ def generate_launch_description():
         ),
 
 		# imu handler node
-		Node(
-            package='sensors',
-            executable='imu_handler.py',
-            name='imu_handler',
-            output='screen',
-        ),
+#		Node(
+#            package='sensors',
+#            executable='imu_handler.py',
+#            name='imu_handler',
+#            prefix='/home/diana/.venvs/bno085/bin/python',
+#            output='screen',
+#        ),
 
         # wheel odometry 
         Node(

@@ -47,9 +47,7 @@ public:
 				cmdTwist.y = icMsg.linear.y;
 				cmdTwist.w = icMsg.angular.z;
 
-				// should consider adding some kind of check for valid cmd...
-				// what happens if keyboard node shuts down? does controller
-				// pub get stuck on previous command?
+				timeout_counter = 0;
 				
 				#ifdef INP_MESSAGE_TESTING
 				RCLCPP_INFO(this->get_logger(), 
@@ -66,6 +64,15 @@ public:
 				belTwist.x = btMsg.twist.twist.linear.x;
 				belTwist.y = btMsg.twist.twist.linear.y;
 				belTwist.w = btMsg.twist.twist.angular.z;
+
+				if (belTwist.x > MAX_LINSPEED) belTwist.x = MAX_LINSPEED;
+				if (belTwist.x < -MAX_LINSPEED) belTwist.x = -MAX_LINSPEED;
+
+				if (belTwist.y > MAX_LINSPEED) belTwist.y = MAX_LINSPEED;
+				if (belTwist.y < -MAX_LINSPEED) belTwist.y = -MAX_LINSPEED;
+
+				if (belTwist.w > MAX_ANGSPEED) belTwist.w = MAX_ANGSPEED;
+				if (belTwist.w < -MAX_ANGSPEED) belTwist.w = -MAX_ANGSPEED;
 
 				// should consider what happens when sensors break down (or, 
 				// stops receiving valid measured twist for other reasons)
@@ -86,9 +93,9 @@ public:
 			[this]()	{
 				// note: gain order is kp, ki, kd
 				// don't love this, consider cleaning up
-				static PID vxPID{1.0, 0.1, 0.0, 10};
-				static PID vyPID{0.5, 0.5, 0.0, 10};	// vy likes to slip
-				static PID wzPID{1.0, 0.1, 0.0, 10};
+				static PID vxPID{0.1, 0.0, 0.0, 5e-6};
+				static PID vyPID{5e-2, 0.0, 0.0, 5e-3};	// vy likes to slip
+				static PID wzPID{0.1, 0.0, 0.0, 5e-6};
 
 				// if command changed, reset PID params	
 				static twist prevTwist {};
@@ -105,9 +112,9 @@ public:
 				prev = now;
 
 				// generate error signal then send to PIDs
-				ctrlTwist.x = vxPID.correct(cmdTwist.x - belTwist.x, dt);
-				ctrlTwist.y = vyPID.correct(cmdTwist.y - belTwist.y, dt);
-				ctrlTwist.w = wzPID.correct(cmdTwist.w - belTwist.w, dt);
+				ctrlTwist.x = cmdTwist.x + vxPID.correct(cmdTwist.x - belTwist.x, dt);
+				ctrlTwist.y = cmdTwist.y + vyPID.correct(cmdTwist.y - belTwist.y, dt);
+				ctrlTwist.w = cmdTwist.w + wzPID.correct(cmdTwist.w - belTwist.w, dt);
 				
 				#ifdef CONTROLLER_IO_TESTING
 				RCLCPP_INFO(this->get_logger(), 
@@ -129,6 +136,14 @@ public:
 				wsMsg.back_right 	= brUS;
 				wsMsg.back_left 	= blUS;
 				this->ws_publisher->publish(wsMsg);
+
+				// reset messages so not running off stale inputs
+				if (timeout_counter > input_timeout)	{
+					cmdTwist.x = 0; cmdTwist.y = 0; cmdTwist.w = 0;
+				}
+				timeout_counter++;
+				belTwist.x = 0; belTwist.y = 0; belTwist.w = 0;
+
 			});
 	} // </constructor>
 
@@ -147,6 +162,9 @@ private:
 	rclcpp::Publisher<interface::msg::Wheelspeed>::SharedPtr ws_publisher;
 	rclcpp::TimerBase::SharedPtr wsTimer;
 	rclcpp::Time prev;
+
+	uint8_t timeout_counter { 0 };
+	const uint8_t input_timeout { 128 };	
 
 	// helper functions
 	double getFrontRightWS();

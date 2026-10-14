@@ -70,7 +70,7 @@ namespace ScreenHandler	{
 "\n       w                                                         "
 "\n     q   e        <---      --->                                 "
 "\n  < a  x  d >       , ?    / .                                   "
-"\n     z   c          _/      _               { [0  127] }         "
+"\n     z   c          __/    ?_               { [0  127] }         "
 "\n       s                                   -- - GAIN + ++        "
 "\n       v                                        /   " // shorter to allow gain on same line
 		};

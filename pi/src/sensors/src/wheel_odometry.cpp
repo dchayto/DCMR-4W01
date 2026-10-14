@@ -59,13 +59,13 @@ public:
 						("wheel_twist", 1);
 			auto odomMsg = geometry_msgs::msg::TwistWithCovarianceStamped();
 			odomMsg.header.stamp = this->get_clock()->now();
-			odomMsg.header.frame_id = "odom";
+			odomMsg.header.frame_id = "base_link";
 
 			// COVARIANCE MATRIX: x, y, z, rx, ry, rz
 			// set somewhat arbitrarily, figure out more reasonable values later
 			odomMsg.twist.covariance = {
 				1e-2,	0.0,	0.0,	0.0,	0.0,	0.0,
-				0.0,	2e-1,	0.0,	0.0,	0.0,	0.0,
+				0.0,	5e-1,	0.0,	0.0,	0.0,	0.0,
 				0.0,	0.0,	1e3,	0.0,	0.0,	0.0,
 				0.0,	0.0,	0.0,	1e3,	0.0,	0.0,
 				0.0,	0.0,	0.0,	0.0,	1e3,	0.0,
