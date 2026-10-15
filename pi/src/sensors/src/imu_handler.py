@@ -90,13 +90,13 @@ class BNO085Node(Node):
 
         msg.angular_velocity_covariance = [
         #	x		y		z
-            2e-4,	0.0,	0.0,	# x	
-            0.0,	2e-4,	0.0,	# y	
+            4e-4,	0.0,	0.0,	# x	
+            0.0,	4e-4,	0.0,	# y	
             0.0,	0.0,	2e-4	# z	
         ]	# gyro + onboard fusion
 
-		# weighting y accelerometer readings higher - wheels slip along roller
-		# axis, can't trust encoder readings.
+		# weighting accelerometer readings higher - wheels slip along roller
+		# axis, can't trust encoder readings for lateral movement.
         msg.linear_acceleration_covariance = [
         #	x		y		z
             3e-2,	0.0,	0.0,	# x	
