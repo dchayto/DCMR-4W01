@@ -31,8 +31,8 @@
 #include "robot_params.hpp"		// for robot parameters
 
 #undef INP_MESSAGE_TESTING			// enables ROS message writeouts
-#define BEL_MESSAGE_TESTING			// enables ROS message writeouts
-#define CONTROLLER_IO_TESTING	// enables writeouts of controller I/O
+#undef BEL_MESSAGE_TESTING			// enables ROS message writeouts
+#undef CONTROLLER_IO_TESTING	// enables writeouts of controller I/O
 
 class MecWheelControllerNode : public rclcpp::Node	{
 public:
@@ -91,11 +91,10 @@ public:
 		ws_publisher = this->create_publisher<interface::msg::Wheelspeed>("wheelspeed", 1);
 		wsTimer = this->create_wall_timer(50ms,
 			[this]()	{
-				// note: gain order is kp, ki, kd
-				// don't love this, consider cleaning up
-				static PID vxPID{0.1, 0.0, 0.0, 5e-6};
-				static PID vyPID{5e-2, 0.0, 0.0, 5e-3};	// vy likes to slip
-				static PID wzPID{0.1, 0.0, 0.0, 5e-6};
+				// note: gain order is kp, ki, kd, max_igain
+				static PID vxPID{Kp_x, Ki_x, Kd_x, max_ix};
+				static PID vyPID{Kp_y, Ki_y, Kd_y, max_iy};	// vy likes to slip
+				static PID wzPID{Kp_w, Ki_w, Kd_w, max_iw};
 
 				// if command changed, reset PID params	
 				static twist prevTwist {};
@@ -157,6 +156,22 @@ private:
 	twist belTwist {0.0, 0.0, 0.0}; 	// current motion belief [x, y, w]
 	twist ctrlTwist {0.0, 0.0, 0.0};	// control signal twist [x, y, w]
 
+	// PID parameters - comment out and hardcode once tuned
+	double Kp_x = this->declare_parameter<double>("Kp_x");
+	double Ki_x = this->declare_parameter<double>("Ki_x");
+	double Kd_x = this->declare_parameter<double>("Kd_x");
+	double max_ix = this->declare_parameter<double>("max_ix");
+
+	double Kp_y = this->declare_parameter<double>("Kp_y");
+	double Ki_y = this->declare_parameter<double>("Ki_y");
+	double Kd_y = this->declare_parameter<double>("Kd_y");
+	double max_iy = this->declare_parameter<double>("max_iy");
+
+	double Kp_w = this->declare_parameter<double>("Kp_w");
+	double Ki_w = this->declare_parameter<double>("Ki_w");
+	double Kd_w = this->declare_parameter<double>("Kd_w");
+	double max_iw = this->declare_parameter<double>("max_iw");
+	
 	rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr input_twist_subscription;
 	rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr measured_twist_subscription;
 	rclcpp::Publisher<interface::msg::Wheelspeed>::SharedPtr ws_publisher;

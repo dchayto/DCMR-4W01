@@ -99,9 +99,9 @@ class BNO085Node(Node):
 		# axis, can't trust encoder readings.
         msg.linear_acceleration_covariance = [
         #	x		y		z
-            5e-1,	0.0,	0.0,	# x	
-            0.0,	2e-2,	0.0,	# y	
-            0.0,	0.0,	8e-2,	# z	
+            3e-2,	0.0,	0.0,	# x	
+            0.0,	3e-2,	0.0,	# y	
+            0.0,	0.0,	4e-2,	# z	
         ]	# accelerometer + onboard fusion
 
 

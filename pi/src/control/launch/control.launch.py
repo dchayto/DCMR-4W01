@@ -23,6 +23,11 @@ def generate_launch_description():
             package='control',
             executable='mecanum_controller_node',
             name='mec_controller',
+			parameters=[	# had ki_x at 5.0e-4 before - retuning P
+			{'Kp_x': 5.0e-2},{'Ki_x': 2.0e-4},{'Kd_x': 0.0},{'max_ix': 1e-7},
+			{'Kp_y': 1.0e-1}, {'Ki_y': 0.0}, {'Kd_y': 0.0}, {'max_iy': 5e-3},
+			{'Kp_w': 0.65}, {'Ki_w': 0.0}, {'Kd_w': 0.0}, {'max_iw': 5e-6}
+			],
             output='screen',
         ),
     ])

@@ -6,7 +6,7 @@
 robot_odom_ekf:
   ros__parameters:
     # Filter settings
-    frequency: 40.0			# 20hz pub frequency on nodes that use data
+    frequency: 30.0			# 20hz pub frequency on nodes that use data
     sensor_timeout: 0.10	# should be sending new msgs every 0.01s
     two_d_mode: true		# planar robot
 
@@ -31,14 +31,14 @@ robot_odom_ekf:
     twist0_queue_size: 10
 
     # BNO085 IMU
-#    imu0: /imu/data
-#    imu0_config: [
-#      false, false, false,		# x, y, z
-#      false, false, false,		# roll, pitch, yaw
-#      false, false, false,		# vx, vy, vz
-#      false, false, false,		# vroll, vpitch, vyaw
-#      false, false, false			# ax, ay, az
-#    ]
-#    imu0_queue_size: 10
-#    imu0_differential: true
-#    #imu0_relative: true
+    imu0: /imu/data
+    imu0_config: [
+      false, false, false,		# x, y, z
+      false, false, true,		# roll, pitch, yaw
+      false, false, false,		# vx, vy, vz
+      false, false, true,		# vroll, vpitch, vyaw
+      true, true, false			# ax, ay, az
+    ]
+    imu0_queue_size: 10
+    imu0_differential: false
+    imu0_relative: false
