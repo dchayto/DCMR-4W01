@@ -6,7 +6,7 @@
 robot_odom_ekf:
   ros__parameters:
     # Filter settings
-    frequency: 40.0			# 20hz pub frequency on nodes that use data
+    frequency: 30.0			# 20hz pub frequency on nodes that use data
     sensor_timeout: 0.10	# should be sending new msgs every 0.01s
     two_d_mode: true		# planar robot
 

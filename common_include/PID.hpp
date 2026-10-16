@@ -9,7 +9,7 @@ public:
 	 : kp_{kp}
 	 , ki_{ki}
 	 , kd_{kd}
-	 , max_itgl_{ i_max }
+	 , max_itgl_{ (i_max >= 0.0 ? i_max : -i_max) }
 	{} // </constructor>
 
 	double correct(double err, double dt)	{	

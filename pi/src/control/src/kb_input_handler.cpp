@@ -61,7 +61,7 @@ public:
 		using namespace std::chrono_literals;
 		input_twist_publisher 
 		    = this->create_publisher<geometry_msgs::msg::Twist>("input_cmd", 1);
-		inputTimer = this->create_wall_timer(100ms,
+		inputTimer = this->create_wall_timer(25ms,
 			std::bind(&KeyboardHandlerNode::onKBTimer, this));
 	} // </constructor>
 
@@ -94,14 +94,11 @@ void KeyboardHandlerNode::onKBTimer()	{
 	// adding hysteresis to first input only to account for keyboard hold-down
 	// delay - recommend turning this delay down/off when testing and on robot
 	static char ch { ' ' };
-	static char prev_ch { ' ' };
 	static unsigned int no_command_count { 0 };
-	//bool stale_cmd { false };
-	uint8_t no_command_threshold { 10 };	// timeout when no commands received
+	uint8_t no_command_threshold { 16 };	// timeout when no commands received
 
 	if (read(STDIN_FILENO, &ch, 1))	{
 		no_command_count = 0;
-		prev_ch = ch;	
 	} else {
 		no_command_count++;
 	}
@@ -109,13 +106,15 @@ void KeyboardHandlerNode::onKBTimer()	{
 	// flush input buffer so old commands don't build up over time
 	tcflush(STDIN_FILENO, TCIFLUSH);
 
-	if (ch == prev_ch)	no_command_threshold = 2; // stale command - time out sooner
+	//if (ch == prev_prev_ch)	no_command_threshold = 8; // stale command - time out sooner
 
 	// don't want hysteresis on gain controls
 	if (ch == GAINUP || ch == GAINUP10 || ch == GAINDN || ch == GAINDN10)
 		no_command_threshold = 0;
 	
-	if (no_command_count > no_command_threshold)	ch = ' '; // default blank 
+	if (no_command_count > no_command_threshold)	{
+		ch = ' '; // default blank 
+	}
 	
 	switch (ch)	{
 		// basic movements:

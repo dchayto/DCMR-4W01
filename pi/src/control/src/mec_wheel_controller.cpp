@@ -31,8 +31,8 @@
 #include "robot_params.hpp"		// for robot parameters
 
 #undef INP_MESSAGE_TESTING			// enables ROS message writeouts
-#define BEL_MESSAGE_TESTING			// enables ROS message writeouts
-#define CONTROLLER_IO_TESTING	// enables writeouts of controller I/O
+#undef BEL_MESSAGE_TESTING			// enables ROS message writeouts
+#undef CONTROLLER_IO_TESTING	// enables writeouts of controller I/O
 
 class MecWheelControllerNode : public rclcpp::Node	{
 public:
@@ -47,9 +47,7 @@ public:
 				cmdTwist.y = icMsg.linear.y;
 				cmdTwist.w = icMsg.angular.z;
 
-				// should consider adding some kind of check for valid cmd...
-				// what happens if keyboard node shuts down? does controller
-				// pub get stuck on previous command?
+				timeout_counter = 0;
 				
 				#ifdef INP_MESSAGE_TESTING
 				RCLCPP_INFO(this->get_logger(), 
@@ -66,6 +64,15 @@ public:
 				belTwist.x = btMsg.twist.twist.linear.x;
 				belTwist.y = btMsg.twist.twist.linear.y;
 				belTwist.w = btMsg.twist.twist.angular.z;
+
+				if (belTwist.x > MAX_LINSPEED) belTwist.x = MAX_LINSPEED;
+				if (belTwist.x < -MAX_LINSPEED) belTwist.x = -MAX_LINSPEED;
+
+				if (belTwist.y > MAX_LINSPEED) belTwist.y = MAX_LINSPEED;
+				if (belTwist.y < -MAX_LINSPEED) belTwist.y = -MAX_LINSPEED;
+
+				if (belTwist.w > MAX_ANGSPEED) belTwist.w = MAX_ANGSPEED;
+				if (belTwist.w < -MAX_ANGSPEED) belTwist.w = -MAX_ANGSPEED;
 
 				// should consider what happens when sensors break down (or, 
 				// stops receiving valid measured twist for other reasons)
@@ -84,11 +91,10 @@ public:
 		ws_publisher = this->create_publisher<interface::msg::Wheelspeed>("wheelspeed", 1);
 		wsTimer = this->create_wall_timer(50ms,
 			[this]()	{
-				// note: gain order is kp, ki, kd
-				// don't love this, consider cleaning up
-				static PID vxPID{1.0, 0.1, 0.0, 10};
-				static PID vyPID{0.5, 0.5, 0.0, 10};	// vy likes to slip
-				static PID wzPID{1.0, 0.1, 0.0, 10};
+				// note: gain order is kp, ki, kd, max_igain
+				static PID vxPID{Kp_x, Ki_x, Kd_x, max_ix};
+				static PID vyPID{Kp_y, Ki_y, Kd_y, max_iy};	// vy likes to slip
+				static PID wzPID{Kp_w, Ki_w, Kd_w, max_iw};
 
 				// if command changed, reset PID params	
 				static twist prevTwist {};
@@ -105,9 +111,9 @@ public:
 				prev = now;
 
 				// generate error signal then send to PIDs
-				ctrlTwist.x = vxPID.correct(cmdTwist.x - belTwist.x, dt);
-				ctrlTwist.y = vyPID.correct(cmdTwist.y - belTwist.y, dt);
-				ctrlTwist.w = wzPID.correct(cmdTwist.w - belTwist.w, dt);
+				ctrlTwist.x = cmdTwist.x + vxPID.correct(cmdTwist.x - belTwist.x, dt);
+				ctrlTwist.y = cmdTwist.y + vyPID.correct(cmdTwist.y - belTwist.y, dt);
+				ctrlTwist.w = cmdTwist.w + wzPID.correct(cmdTwist.w - belTwist.w, dt);
 				
 				#ifdef CONTROLLER_IO_TESTING
 				RCLCPP_INFO(this->get_logger(), 
@@ -129,6 +135,14 @@ public:
 				wsMsg.back_right 	= brUS;
 				wsMsg.back_left 	= blUS;
 				this->ws_publisher->publish(wsMsg);
+
+				// reset messages so not running off stale inputs
+				if (timeout_counter > input_timeout)	{
+					cmdTwist.x = 0; cmdTwist.y = 0; cmdTwist.w = 0;
+				}
+				timeout_counter++;
+				belTwist.x = 0; belTwist.y = 0; belTwist.w = 0;
+
 			});
 	} // </constructor>
 
@@ -142,11 +156,30 @@ private:
 	twist belTwist {0.0, 0.0, 0.0}; 	// current motion belief [x, y, w]
 	twist ctrlTwist {0.0, 0.0, 0.0};	// control signal twist [x, y, w]
 
+	// PID parameters - comment out and hardcode once tuned
+	double Kp_x = this->declare_parameter<double>("Kp_x");
+	double Ki_x = this->declare_parameter<double>("Ki_x");
+	double Kd_x = this->declare_parameter<double>("Kd_x");
+	double max_ix = this->declare_parameter<double>("max_ix");
+
+	double Kp_y = this->declare_parameter<double>("Kp_y");
+	double Ki_y = this->declare_parameter<double>("Ki_y");
+	double Kd_y = this->declare_parameter<double>("Kd_y");
+	double max_iy = this->declare_parameter<double>("max_iy");
+
+	double Kp_w = this->declare_parameter<double>("Kp_w");
+	double Ki_w = this->declare_parameter<double>("Ki_w");
+	double Kd_w = this->declare_parameter<double>("Kd_w");
+	double max_iw = this->declare_parameter<double>("max_iw");
+	
 	rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr input_twist_subscription;
 	rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr measured_twist_subscription;
 	rclcpp::Publisher<interface::msg::Wheelspeed>::SharedPtr ws_publisher;
 	rclcpp::TimerBase::SharedPtr wsTimer;
 	rclcpp::Time prev;
+
+	uint8_t timeout_counter { 0 };
+	const uint8_t input_timeout { 128 };	
 
 	// helper functions
 	double getFrontRightWS();

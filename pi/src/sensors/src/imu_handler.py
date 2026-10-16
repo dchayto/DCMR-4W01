@@ -79,28 +79,30 @@ class BNO085Node(Node):
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.header.frame_id = 'imu_link'
 
-		# COVARIANCES:
-		# set somewhat arbitrarily, figure out more reasonable values later
-		msg.orientation_covariance = [
-		#	x		y		z
-			3e-3,	0.0,	0.0,	# x	
-			0.0,	0.0,	0.0,	# y	
-			0.0,	0.0,	0.0,	# z	
-		]	# magnetometer + onboard fusion
+        # COVARIANCES:
+        # set somewhat arbitrarily, figure out more reasonable values later
+        msg.orientation_covariance = [
+        #	x		y		z
+            3e-3,	0.0,	0.0,	# x	
+            0.0,	0.0,	0.0,	# y	
+            0.0,	0.0,	0.0,	# z	
+        ]	# magnetometer + onboard fusion
 
-		msg.angular_velocity_covariance = [
-		#	x		y		z
-			2e-4,	0.0,	0.0,	# x	
-			0.0,	2e-4,	0.0,	# y	
-			0.0,	0.0,	2e-4	# z	
-		]	# gyro + onboard fusion
+        msg.angular_velocity_covariance = [
+        #	x		y		z
+            4e-4,	0.0,	0.0,	# x	
+            0.0,	4e-4,	0.0,	# y	
+            0.0,	0.0,	2e-4	# z	
+        ]	# gyro + onboard fusion
 
-		msg.linear_acceleration_covariance = [
-		#	x		y		z
-			4e-2,	0.0,	0.0,	# x	
-			0.0,	4e-2,	0.0,	# y	
-			0.0,	0.0,	4e-2,	# z	
-		]	# accelerometer + onboard fusion
+		# weighting accelerometer readings higher - wheels slip along roller
+		# axis, can't trust encoder readings for lateral movement.
+        msg.linear_acceleration_covariance = [
+        #	x		y		z
+            3e-2,	0.0,	0.0,	# x	
+            0.0,	3e-2,	0.0,	# y	
+            0.0,	0.0,	4e-2,	# z	
+        ]	# accelerometer + onboard fusion
 
 
         # Orientation
