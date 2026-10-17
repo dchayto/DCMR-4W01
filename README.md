@@ -2,20 +2,25 @@
 DCMR-4W01 (Diana Chaytor Mobile Robot - 4-Wheeled 01) is a personal project I've been working on, the primary aims of which were to familiarize myself with the ROS2 stack, to get some C++ coding experience, and to explore some basic controls (and in the future, autonomy) concepts.
 
 To briefly summarize the status of the project: the robot is up and running to a basic degree - it drives reasonably well (aside from lateral movements, which it struggles with due to poor wheel traction), and is teleoperable using keyboard controls from an offboard computer. There are a number of future developments I would like to explore (namely adding a camera feed to aid teleoperation, looking towards LIO SLAM, and afterwards some basic autonomy), but these will require (or at least benefit greatly from) a series of hardware improvements - mainly targeting improvements towards the electrical performance of the system and replacing some cheap COTS parts. At the moment, I am trying to decide between pursuing some of these developments, and shelving this project at its current stage for the time being in favour of working on a new robotics project.
-<br><br>
+
+[UNTETHERED ON MAT](library/vid_untethered_mat.mp4)&emsp;[UNTETHERED NO MAT](library/vid_untethered.mp4)&emsp;
+[CATWALK](library/vid_catwalk_mat.mp4)&emsp;[SEE YOU SPACE COWBOY](library/vid_my-planet-needs-me.mp4)
+
+**NOTE:** unfortunately, the video demos for this project are too large to be embedded within this README (>10Mb). I am working on reducing the file size, but for the present moment have just included hyperlinks to the files.
+<br>
 
 ## Table of contents
-[Prototype build](#prototype-build)
-[Project status](#project-status)
-[Future plans](#future-plans)
-  [Mapping and localization (LIO SLAM)](#mapping-and-localization-lio-slam)
-  [Position control](#position-control)
-  [Planning and autonomy](#planning-and-autonomy)
-[Housekeeping work](#housekeeping-work)
-  [Electrical cleanup](#electrical-cleanup)
-  [COTS component swap-out](#cots-component-swap-out)
-  [Software cleanup](#software-cleanup)
-<br><br>
+[Prototype build](#prototype-build)<br>
+[Project status](#project-status)<br>
+[Future plans](#future-plans)<br>
+&emsp;[Mapping and localization (LIO SLAM)](#mapping-and-localization-lio-slam)<br>
+&emsp;[Position control](#position-control)<br>
+&emsp;[Planning and autonomy](#planning-and-autonomy)<br>
+[Housekeeping work](#housekeeping-work)<br>
+&emsp;[Electrical cleanup](#electrical-cleanup)<br>
+&emsp;[COTS component swap-out](#cots-component-swap-out)<br>
+&emsp;[Software cleanup](#software-cleanup)<br>
+<br>
 
 ### Prototype build:
 For ease-of-sourcing and prototyping, the platform was built using a variety of common COTS components, many of which I already had available. For this prototype, a Raspberry Pi 3B+ running Ubuntu server 22.04 was used as the compute module, and an Arduino Due was used as a motor control module - while not ideal for these purposes, these were selected out of convenience, as I already had them laying around. During untethered operation, the Due is powered off of the Pi via USB connection, and the Pi is powered off a universal power supply that I had from my FYDP.
@@ -25,21 +30,32 @@ The robot's chassis is custom designed, and 3D printed from PETG. COTS mecanum w
 Completing the electrical design is a small breadboard circuit, which consists of a main power bus with some voltage stabilizing capacitors, voltage dividers to bring encoder ticks to levels compatible with the Due's GPIO pins (3v3), and some routing for various connections. 
 
 The robot also has 4 ultrasonic sensors integrated into its chassis for future collision detection/last-measure obstacle avoidance - though they haven't been integrated yet due to an already-present cluttering issue. All new components were purchased off DigiKey or Amazon.
-* PUT PICTURES OF THE ROBOT HERE - alternatively, nest them between paragraphs (but probably makes more sense to just have a couple at the bottom *
-<br><br>
+<p float="right">
+  <img src="library/chassis_iso3.jpg" width="49%" />
+  <img src="library/chassis_wiring.jpg" width="49%" />
+</p>
+<br>
 
 ### Project status
 The system is able to run untethered (controlled via teleoperation over wifi). At the moment, this is being done by remote connection into the Pi via ssh from my dev computer, but with some amount of setup this could be configured to run over ros2 through my LAN - my dev computer is running a newer ros2 version than the Pi though (Jazzy on dev computer, Humble on Pi - the Pi is running outdated Ubuntu, so it had to run outdated ros2 as well), so there may be some compatibility issues (the prospect of which put a low priority on investigating this, especially when ssh access had other advantages during development).
 
 Wheel PIDs were written into the motor control module firmware, and seem to be performing well (at least when battery power remains high: as the power drains, the wheel PIDs seem to have trouble tracking inputs, requiring higher command inputs to achieve a given speed).
-*PUT VIDEO OF TUNED WHEELS*
 
-IMU and encoder measurements were integrated into the sensing stack, and are currently being used for closed-loop control on both the wheel speed controllers (encoder only), and the body velocity controller (encoder + IMU). Other than issues resulting from excessive wheel slip (the COTS mecanum wheels I sourced have very poor traction on most surfaces), the robot is performing reasonably well - noting trade-offs in controller tuning that I opted for to try to mitigate the wheel slip issue.
-*PUT VIDEOS OF ROBOT OPERATING WITH AND WITHOUT PID CONTROLLER*
+[WHEEL CONTROLLER TRACKING](library/wheel_controller_echos.mp4)&emsp;[RUNNING WHEELS](library/wheel_controller_wheels.mp4)
+
+
+IMU and encoder measurements were integrated into the sensing stack, and are currently being used for closed-loop control on both the wheel speed controllers (encoder only), and the body velocity controller (encoder + IMU). Other than issues resulting from excessive wheel slip (the COTS mecanum wheels I sourced have very poor traction on most surfaces, leading to poor lateral motion), the robot is performing reasonably well - noting trade-offs in controller tuning that I opted for to try to mitigate the wheel slip issue.
+
+[FORWARD TRACKING](library/vid_forward.mp4)&emsp;[YAW TRACKING](library/vid_angular_tracking.mp4)
+
+The body velocity controllers could certainly use some further tweaking, as the pose estimate is still oscillating about most mid-to-high gain setpoints (which is where the robot will be operating for the most part). It is difficult to tune this properly, as increased integral and derivative gains are required if there is any hope at keeping lateral motion stable with respect to other directions, but increasing these gains also raises the propensity for oscillations and integral windup.
+**NOTE:** right now, I have been tuning by monitoring echoed topics - to achieve a better parameter set, it would be beneficial to record the full dataset for a input response and plot and analyze the data to quantify parameters such as overshoot, rise time, and magnitude/decay rate of observed oscillations.
 
 The chassis is built aside from the top shell - the design of which has been roughed out, but is awaiting final detailing before printing (it would be more of an inconvenience for platform development anyways). It will be used to mount the camera module and LiDAR scanner (see the subsection titled ["Future plans"](#future-plans) for details) and will thus need to be designed and printed before those developments can begin.
-*PUT PICTURE OF CHASSIS CAD HERE, WITH LABELS ON PLANNED MOUNTING FOR LIDAR AND CAMERA)*
-<br><br>
+<p float="right">
+  <img src="library/CAD_iso.png" width="90%" />
+  </p>
+<br>
 
 ### Future plans
 The long-term aim of this project was always to touch on some higher-level autonomy concepts, but given that this needed to be built towards, it was always going to be fairly low on the priority list (many basic requirements needed to be met first). While it would be nice to continue with a robot I designed and built myself, it might be best to look at some of these concepts with a more vetted platform (though any capable of handling these new requirements are likely to be very expensive, and at lower price points could carry many of the issues left to resolve with this project - if not more).
@@ -49,8 +65,12 @@ Before starting on some of the projections listed below, there is some "cleanup"
 #### Mapping and localization (LIO SLAM)
 After the core platform is working, the natural next area of focus for the project is setting up for higher-level autonomy. The addition of a LiDAR scanner would allow for the robot to perform simultaneous localization and mapping (SLAM), optionally with the integration of inertial measurement (IMU) and wheel odometry (encoder) data into the estimate. While a custom package could be written to handle this, SLAM integration could be greatly facilitated by leaning on pre-built packages such as slam_toolbox and Nav2.
 
-However, it is likely that whatever SLAM system is designed will not be able to run onboard the Pi3B+ as originally intended - the CPU cores are already running upwards of 70% capacity under load with the current running processes, so adding the data processing, memory caching, and computations required for effective SLAM would almost certainly exceed the processing capabilities of the SBC. In order to implement SLAM with the current hardware stack, the best route may be to try to pipe LiDAR data (as well as pose estimates from other sensors) to an offboard PC, which runs the SLAM stack and returns a map with a global pose estimate to the Pi (which then dead reckons until receiving the next update). Offboarding would also allow other autonomy features (e.g., planning) to be handled by a different compute unit, allowing the onboard computer to remain free for low-level pathing (e.g., implementing sequences of velocity commands, short-range position control, obstacle avoidance, etc.) and control.
-*PUT SCREENSHOT OF HTOP OUTPUT*
+However, it is likely that whatever SLAM system is designed will not be able to run onboard the Pi3B+ as originally intended - the CPU cores are already running upwards of 70% (upwards of 90% when echoing high-frequency topics) capacity under load with the current running processes, so adding the data processing, memory caching, and computations required for effective SLAM would almost certainly exceed the processing capabilities of the SBC. In order to implement SLAM with the current hardware stack, the best route may be to try to pipe LiDAR data (as well as pose estimates from other sensors) to an offboard PC, which runs the SLAM stack and returns a map with a global pose estimate to the Pi (which then dead reckons until receiving the next update). Offboarding would also allow other autonomy features (e.g., planning) to be handled by a different compute unit, allowing the onboard computer to remain free for low-level pathing (e.g., implementing sequences of velocity commands, short-range position control, obstacle avoidance, etc.) and control.
+<p float="right">
+  <img src="library/cpu_no_echo.png" width="49%" />
+  <img src="library/cpu_with_echo.png" width="49%" />
+</p>
+
 Depending on the feasibility of offboarding SLAM (e.g., considering how realistic the data pipelining is, and what sort of update latency would be realized), it may make more sense to just opt to purchase a better compute module - a Raspberry Pi 4B+ should be a drop-in upgrade for the features I actually care about (mounting and footprint compatibility), and would provide a far more performant processor, with purchase options that provide more built-in memory (based on [table 9 of this review](https://www.mdpi.com/2218-6581/15/8/142), the Pi 4B should be able to support LIO SLAM at 10-30Hz). The upgraded computer would also certainly be able to run Ubuntu server 24.04, which would allow me to match ros2 versions with my dev PC, and supports 5GHz WiFi, allowing for lower network latency.
 
 #### Position control
@@ -75,13 +95,19 @@ It would make the most sense to design a custom PCB as a hat board for the Due (
 Power concerns are also a high-value target area for improvement. Monitoring of the auxiliary power batteries (at least some basic monitoring, i.e., lighting an LED when it drops below some threshold) would be very beneficial from a usability perspective (at the moment, observing degraded driving performance is the main indication that batteries need charging).
 
 Upgrades for the batteries themselves should also be investigated: at the moment, the system is being powered using rechargable AA batteries, with a capacity of 2300mAh, in series - this leads to a relatively short life between battery swaps or charges (anywhere between 15 minutes and a few hours, depending on driving performance requirements and usage). Higher-capacity rechargable batteries would make the system a lot more usable, especially where autonomous operation (where a human may not be around at a given time to swap the batteries) is concerned.
+<p float="right">
+  <img src="library/battholder_closed.jpg" width="49%" />
+  <img src="library/battholder_open.jpg" width="49%" />
+</p>
 
 #### COTS component swap-out
 **Wheels:** I used very cheap mecanum wheels sourced off Amazon for this project, whose rollers are made of a hard, slippery plastic (I assume to be ABS or HDPE), and have very poor traction. This leads to excessive slipping in the roller-axis directions, which makes holonomic movement (which was supposed to be the advantage of using the mecanum wheels) inconsistent and inefficient, in addition to having negative implications on the validity of the encoder odometry. The wheels have especially poor traction on the vinyl flooring in my apartment (they drive a little better on a rubber mat or on thin rugs), and they tend to get caught up in the carpeted flooring elsewhere in the apartment.
-*attach video of robot slipping while trying to drive sideways - optionally, turn PIDs off*
-I've tried my best to smooth out the controls - I've increased the integral and derivative gains in the driving direction and weighted the linear movement readings from the IMU higher than I might otherwise have in order to try to stabilize about the x=x0 operating point, so that it can at least drive (albeit slowly) in this direction, but I fear I am approaching the limit of what can practicably be done with this hardware (both in terms of sensing and state estimation with the current compute and sensor stack, and on compensating for wheel slippage).
+[NO MAT LATERAL TRACKING](library/vid_untethered_lateral)
 
-These wheels should be swapped out with either more performant mecanum wheels (i.e., ones with better roller traction), or with regular wheels with better traction (this would require disabling lateral movement commands).
+I've tried my best to smooth out the controls - I've increased the integral and derivative gains in the driving direction and weighted the linear movement readings from the IMU higher than I might otherwise have in order to try to stabilize about the x=x0 operating point, so that it can at least drive (albeit slowly) in this direction, but I fear I am approaching the limit of what can practicably be done with this hardware (both in terms of sensing and state estimation with the current compute and sensor stack, and on compensating for wheel slippage).
+[LATERAL TRACKING](library/vid_lateral_mat)&emsp;[LOW GAIN LATERAL TRACKING](library/vid_lateral_mat_low-gain)
+
+These wheels should be swapped out with either more performant mecanum wheels (i.e., ones with better roller traction), or with regular wheels with better traction (this would require disabling lateral movement commands). Note that part of the traction issues may also be a result of the uneven flooring in my apartment in junction with the lack of a suspension system for the robot - it is probable that at least one wheel is seeing reduced contact with the ground due to printing and assembly tolerances, as well as differences in flooring profile.
 
 **L298n motor drivers:** As stated in the electrical section, the motor drivers used for this stage of the prototype were selected for simplicity, not performance - they are bulky and inefficient, and the headers on the board chosen require the use of DuPont connectors, which are mechanically unreliable and generally perform poorer than e.g., JST PH connectors. As mentioned, they should be swapped out with a more performance COTS driver, or preferably, integrated into a custom PCB.
 
@@ -93,3 +119,4 @@ The input handler could also use a rework or a rewrite - I would like something 
 
 As mentioned, the chassis-mounted ultrasonic sensors still have yet to be integrated into the system (waiting on a custom PCB, as currently, the wiring is enough of a mess as-is). These sensors would be used for collision detection and/or short-term obstacle avoidance.
 
+As mentioned, I would also like to work out a way to embed my demo videos directly into this README, as having to download each file is tedious.
