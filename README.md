@@ -76,8 +76,10 @@ Depending on the feasibility of offboarding SLAM (e.g., considering how realisti
 #### Position control
 Position control has not yet been implemented due to lack of global reference frame in the current design (it was also decidedly less important to core usability than developments done to date). Additionally, any position estimate is likely to be poor given the current sensor stack and the traction issues - wheel odometry can be relied on to a reasonable degree for forwards and turning motions (magnetometer data from the IMU would also give reliable yaw estimates), but any derived lateral motion estimates are completely untrustworthy, and 2nd order integration of velocity data from an IMU is certain to drift far too much to be reliable over time.
 
-#### Planning and autonomy
+#### Planning, autonomy, and multi-robot coordination
 Once mapping, localization, and position control have been realized, I can look into running some basic autonomous missions (given the platform, this will probably be limited to "go from location A to B and inspect the area"). It would make sense to lean on ros2 packages such as Nav2 to implement these features.
+
+Given the relatively low cost of the robot, it would also be interesting to explore multi-robot coordination in the future - some possible exercises could include collaborative map exploration, shared task handling, and pathing coordination including co-operator avoidance.
 <br><br>
 
 ### Housekeeping work
