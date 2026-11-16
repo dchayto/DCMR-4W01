@@ -15,7 +15,7 @@ To briefly summarize the status of the project: the robot is up and running to a
 [Future plans](#future-plans)<br>
 &emsp;[Mapping and localization (LIO SLAM)](#mapping-and-localization-lio-slam)<br>
 &emsp;[Position control](#position-control)<br>
-&emsp;[Planning and autonomy](#planning-and-autonomy)<br>
+&emsp;[Planning, autonomy, and multi-robot coordination](#planning-autonomy-and-multi-robot-coordination)<br>
 [Housekeeping work](#housekeeping-work)<br>
 &emsp;[Electrical cleanup](#electrical-cleanup)<br>
 &emsp;[COTS component swap-out](#cots-component-swap-out)<br>
@@ -51,9 +51,14 @@ IMU and encoder measurements were integrated into the sensing stack, and are cur
 The body velocity controllers could certainly use some further tweaking, as the pose estimate is still oscillating about most mid-to-high gain setpoints (which is where the robot will be operating for the most part). It is difficult to tune this properly, as increased integral and derivative gains are required if there is any hope at keeping lateral motion stable with respect to other directions, but increasing these gains also raises the propensity for oscillations and integral windup. Tuning was also made difficult by battery life concerns requiring frequent swapping and charging of the motor/auxiliary power bank.
 **NOTE:** right now, I have been tuning by monitoring echoed topics: to achieve a better parameter set, it would be beneficial to record the full dataset for an input response and plot and analyze the data to quantify parameters such as overshoot, rise time, and magnitude/decay rate of observed oscillations.
 
+<p align="center">
+  <img src="overview/DCMR_controller_rotated.png" width="40%">
+  </p>
+<br>
+
 The chassis is built, aside from the top shell - the design of which has been roughed out, but is awaiting final detailing before printing (it would have been be more of an inconvenience for platform development anyways). It will be used to mount the camera module and LiDAR scanner (see the subsection titled ["Future plans"](#future-plans) for details) and will thus need to be designed and printed before those developments can begin.
 <p float="right">
-  <img src="library/CAD_iso.png" width="90%" />
+  <img src="library/CAD_iso.png">
   </p>
 <br>
 
